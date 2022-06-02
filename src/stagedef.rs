@@ -11,10 +11,7 @@ pub struct StageDefInstance {
 
 impl StageDefInstance {
     pub fn new(path: PathBuf) -> Result<Self, std::io::Error> {
-        let bin = match fs::read(&path) {
-            Ok(f) => f,
-            Err(e) => return Err(e),
-        };
+        let bin = fs::read(&path)?;
 
         let file_path = path;
 
@@ -22,10 +19,7 @@ impl StageDefInstance {
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
 
-        let stagedef = match StageDef::new(bin, &game, &endianness) {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let stagedef = StageDef::new(bin, &game, &endianness)?;
 
         Ok(Self{
             stagedef,
@@ -159,7 +153,7 @@ pub struct CollisionHeader {
     pub center_of_rotation_position: f32,
     pub conveyor_vector: f32,
 
-    pub collision_triangles: Vec<CollisionTriangle>,
+    /*pub collision_triangles: Vec<CollisionTriangle>,
     pub collision_grid_start_x: f32,
     pub collision_grid_start_z: f32,
     pub collision_grid_step_size_x: f32,
@@ -180,16 +174,17 @@ pub struct CollisionHeader {
     pub unk0xa0: u32,
     pub unk0xb0: u32,
     pub unk0xd0: u32,
-    pub unk0xa6: u16,
+    pub unk0xa6: u16,*/
 
-    pub goals: Vec<Box<Goal>>,
+    goals: Vec<Goal>,
+    /*
     pub bumpers: Vec<&Bumper>,
     pub jamabars: Vec<&Jamabar>,
     pub bananas: Vec<&Banana>,
     pub cone_collision_objects: Vec<&ConeCollisionObject>,
     pub sphere_collision_objects: Vec<&SphereCollisionObject>,
     pub cylinder_collision_objects: Vec<&CylinderCollisionObject>,
-    pub fallout_volumes: Vec<&FalloutVolume>,
+    pub fallout_volumes: Vec<&FalloutVolume>,*/
 
 }
 
@@ -200,12 +195,13 @@ pub struct StageDef {
     pub start_position: Vector3,
     pub start_rotation: ShortVector3,
     
-    pub collision_headers: Vec<CollisionHeader>,
+    //collision_headers: Vec<CollisionHeader>,
+    goals: Vec<Goals>;
 
 }
 
 impl StageDef {
     fn new(bin: Vec<u8>, game: &Game, endianness: &Endianness) -> Result<Self, std::io::Error>{
-        Ok(Self{})
+        todo!();
     }
 }
