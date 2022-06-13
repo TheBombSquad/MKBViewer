@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::BufReader;
 use std::{fs, collections};
 use std::path::PathBuf;
 
@@ -11,7 +13,8 @@ pub struct StageDefInstance {
 
 impl StageDefInstance {
     pub fn new(path: PathBuf) -> Result<Self, std::io::Error> {
-        let bin = fs::read(&path)?;
+        let file = fs::File::open(&path)?;
+        let reader = BufReader::new(file);
 
         let file_path = path;
 
@@ -19,7 +22,7 @@ impl StageDefInstance {
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
 
-        let stagedef = StageDef::new(bin, &game, &endianness)?;
+        let stagedef = StageDef::new(reader, &game, &endianness)?;
 
         Ok(Self{
             stagedef,
@@ -31,12 +34,14 @@ impl StageDefInstance {
 }
 
 // Common structures/enums
+#[derive(Default)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32
 }
 
+#[derive(Default)]
 pub struct ShortVector3 {
     pub x: u16,
     pub y: u16,
@@ -188,6 +193,7 @@ pub struct CollisionHeader {
 
 }
 
+#[derive(Default)]
 pub struct StageDef {
     pub magic_number_1: f32,
     pub magic_number_2: f32,
@@ -196,12 +202,12 @@ pub struct StageDef {
     pub start_rotation: ShortVector3,
     
     //collision_headers: Vec<CollisionHeader>,
-    goals: Vec<Goals>;
+    goals: Vec<Goal>,
 
 }
 
 impl StageDef {
-    fn new(bin: Vec<u8>, game: &Game, endianness: &Endianness) -> Result<Self, std::io::Error>{
+    fn new(reader: BufReader<File> , game: &Game, endianness: &Endianness) -> Result<Self, std::io::Error>{
         todo!();
     }
 }
