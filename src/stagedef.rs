@@ -34,14 +34,14 @@ impl StageDefInstance {
 }
 
 // Common structures/enums
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct ShortVector3 {
     pub x: u16,
     pub y: u16,
@@ -73,6 +73,7 @@ pub enum AnimationType {
     Seesaw
 }
 
+#[derive(FromPrimitive, ToPrimitive)]
 pub enum GoalType {
     Blue,
     Green,
@@ -201,6 +202,8 @@ pub struct StageDef {
     pub start_position: Vector3,
     pub start_rotation: ShortVector3,
     
+    pub fallout_level: f32,
+
     //collision_headers: Vec<CollisionHeader>,
     goals: Vec<Goal>,
 

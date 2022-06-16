@@ -1,6 +1,7 @@
 use std::{io::{self, SeekFrom, BufRead, BufReader, Seek, Error, Read, Write, BufWriter, Cursor}, fs::File};
 use byteorder::{BigEndian, LittleEndian, ByteOrder, ReadBytesExt};
-use crate::stagedef::{Endianness, StageDef, Game, Vector3, ShortVector3};
+use crate::stagedef::{Endianness, StageDef, Game, Vector3, ShortVector3, Goal, GoalType};
+use num_traits::FromPrimitive;
 
 #[allow(dead_code)]
 
@@ -11,7 +12,8 @@ const fn from_start(offset: u32) -> Option<SeekFrom> {
 trait ReadBytesExtSmb {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3, Error>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3, Error>;
-    fn read_count_offset<U:ByteOrder> (&mut self) -> Result<CountOffset, Error>; 
+    fn read_count_offset<U: ByteOrder> (&mut self) -> Result<CountOffset, Error>; 
+    fn read_goal<U: ByteOrder> (&mut self) -> Result<Goal, Error>;
 }
 
 impl<T: ReadBytesExt> ReadBytesExtSmb for T {
@@ -46,6 +48,19 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
         Ok(CountOffset {
             count,
             offset
+        })
+    }
+
+    fn read_goal<U: ByteOrder>(&mut self) -> Result<Goal, Error> {
+        let position = self.read_vec3::<U>()?; 
+        let rotation = self.read_vec3_short::<U>()?;
+
+        let goal_type: GoalType = FromPrimitive::from_u16(self.read_u16::<U>()?).unwrap_or(GoalType::Blue);
+
+        Ok(Goal {
+            position,
+            rotation, 
+            goal_type,
         })
     }
 }
@@ -136,18 +151,10 @@ impl StageDef {
         Ok(stagedef)
     }
 
-    fn read_header<T: ByteOrder, RW: Read+Write+Seek> (stagedef: &mut StageDef, reader: &mut BufReader<RW>, format: &StageDefFormat) -> io::Result<()> {
-        reader.seek(format.magic_number_1_offset.unwrap())?;
-        stagedef.magic_number_1 = reader.read_f32::<T>()?; 
-
-        reader.seek(format.magic_number_2_offset.unwrap())?;
-        stagedef.magic_number_2 = reader.read_f32::<T>()?; 
-/*
-        reader.seek(format.start_position_ptr_offset.unwrap())?; 
-        let start_position_ptr = from_start(reader.read_u32::<T>()?);
-        reader.seek(start_position_ptr.unwrap())?; 
-        stagedef.start_position = reader.read_vec3::<T>()?;*/
-
+    fn read_offset_and_seek<T: ByteOrder, RW: Read+Write+Seek>(reader: &mut BufReader<RW>, offset: SeekFrom) -> io::Result<()> {
+        reader.seek(offset)?; 
+        let ptr = from_start(reader.read_u32::<T>()?); 
+        reader.seek(ptr.unwrap())?; 
         Ok(())
     }
 
@@ -155,26 +162,74 @@ impl StageDef {
         todo!();
     } 
 
+    fn read_header<T: ByteOrder, RW: Read+Write+Seek> (stagedef: &mut StageDef, reader: &mut BufReader<RW>, format: &StageDefFormat) -> io::Result<()> {
+        reader.seek(format.magic_number_1_offset.unwrap())?;
+        stagedef.magic_number_1 = reader.read_f32::<T>()?; 
+
+        reader.seek(format.magic_number_2_offset.unwrap())?;
+        stagedef.magic_number_2 = reader.read_f32::<T>()?; 
+
+        StageDef::read_offset_and_seek::<T, RW>(reader, format.start_position_ptr_offset.unwrap())?;
+        stagedef.start_position = reader.read_vec3::<T>()?;
+        stagedef.start_rotation = reader.read_vec3_short::<T>()?;
+
+        StageDef::read_offset_and_seek::<T, RW>(reader, format.fallout_position_ptr_offset.unwrap())?;
+        stagedef.fallout_level = reader.read_f32::<T>()?;
+
+        // TODO: Goal / count/offset block parsing 
+        reader.seek(format.goal_list_offset.unwrap())?;
+        let goal_list = reader.read_count_offset::<T>()?;
+
+        Ok(())
+    }
+
+
 }
 
 #[cfg(test)]
-/// Returns a valid big endian SMB2 main game stagedef with all fields used. 
+/// Returns a valid SMB2 main game stagedef with all fields used. 
 /// The fields used by the stagedef are as follows:
 /// Magic numbers: 0.0, 1,000.0
 /// Collision headers: 0 at offset 0 TODO
 /// Start position: Offset 0x89c
+/// Fallout position: Offset 0x8b0 
 /// TODO: ...
 /// Start position: Vec3: 0.0, 2.75, 14.0, ShortVector3: 0, 0, 0
-fn test_smb2_be_stagedef_header() -> Vec<u8> {
-    let mut stagedef: Vec<u8> = Vec::new();
+/// Fallout level: -20.0
+fn test_smb2_stagedef_header<T: ByteOrder>() -> io::Result<Cursor<Vec<u8>>> {
+    use byteorder::WriteBytesExt;
 
-    stagedef.append(&mut Vec::from(u32::to_be_bytes(0x00000000)));
-    stagedef.append(&mut Vec::from(u32::to_be_bytes(0x447A0000)));
-    stagedef.append(&mut Vec::from(u32::to_be_bytes(0x00000000)));
-    stagedef.append(&mut Vec::from(u32::to_be_bytes(0x00000000)));
+    let mut cur = Cursor::new(vec![0; 0x1000]);
+    
+    // magic numbers
+    cur.write_uint::<T>(0x00000000, 4)?;
+    cur.write_uint::<T>(0x447A0000, 4)?;
+    
+    // collision header
+    cur.write_uint::<T>(0x00000000, 4)?;
+    cur.write_uint::<T>(0x00000000, 4)?;
 
+    // start position offset
+    cur.write_uint::<T>(0x0000089C, 4)?;
 
-    stagedef
+    // fallout position offset
+    cur.write_uint::<T>(0x000008B0, 4)?;
+
+    cur.seek(from_start(0x89C).unwrap())?;
+
+    // start position
+    cur.write_uint::<T>(0x00000000, 4)?;
+    cur.write_uint::<T>(0x40300000, 4)?;
+    cur.write_uint::<T>(0x41600000, 4)?;
+
+    // start rotation
+    cur.write_uint::<T>(0x00000000, 4)?;
+    cur.write_uint::<T>(0x00000000, 4)?;
+
+    cur.seek(from_start(0x8B0).unwrap())?;
+    cur.write_uint::<T>(0xC1A00000, 4)?;
+
+    Ok(cur)
 }
 
 #[test]
@@ -189,22 +244,38 @@ fn test_stagedef_endianness_test() {
 }
 
 #[test]
-fn test_magic_numbers_big_endian() {
-    let file = Cursor::new(test_smb2_be_stagedef_header()); 
-
+fn test_magic_numbers() {
+    let file = test_smb2_stagedef_header::<BigEndian>().unwrap(); 
     let stagedef = StageDef::read_stagedef::<BigEndian, _>(file, Game::SMB2).unwrap();
 
-    assert_eq!(stagedef.magic_number_1, 0.0);
-    assert_eq!(stagedef.magic_number_2, 1000.0);
+    assert_eq!(stagedef.magic_number_1, 0.0, "BigEndian");
+    assert_eq!(stagedef.magic_number_2, 1000.0, "BigEndian");
+
+    let file = test_smb2_stagedef_header::<LittleEndian>().unwrap(); 
+    let stagedef = StageDef::read_stagedef::<LittleEndian, _>(file, Game::SMB2).unwrap();
+
+    assert_eq!(stagedef.magic_number_1, 0.0, "LittleEndian");
+    assert_eq!(stagedef.magic_number_2, 1000.0, "LittleEndian");
 }
 
 
 #[test]
-fn test_magic_numbers_little_endian() {
-    let file = Cursor::new(test_smb2_be_stagedef_header()); 
+fn test_start_fallout_pos_lookup() {
+    let expected_pos = Vector3 {x: 0.0, y: 2.75, z: 14.0};
+    let expected_rot = ShortVector3 {x: 0, y: 0, z: 0};
+    let expected_flevel = -20.0;
 
+    let file = test_smb2_stagedef_header::<BigEndian>().unwrap(); 
+    let stagedef = StageDef::read_stagedef::<BigEndian, _>(file, Game::SMB2).unwrap();
+
+    assert_eq!(stagedef.start_position, expected_pos, "BigEndian");
+    assert_eq!(stagedef.start_rotation, expected_rot, "BigEndian");
+    assert_eq!(stagedef.fallout_level, expected_flevel, "BigEndian");
+
+    let file = test_smb2_stagedef_header::<LittleEndian>().unwrap(); 
     let stagedef = StageDef::read_stagedef::<LittleEndian, _>(file, Game::SMB2).unwrap();
 
-    assert_eq!(stagedef.magic_number_1, 0.0);
-    assert_eq!(stagedef.magic_number_2, 1000.0);
+    assert_eq!(stagedef.start_position, expected_pos, "LittleEndian");
+    assert_eq!(stagedef.start_rotation, expected_rot, "LittleEndian");
+    assert_eq!(stagedef.fallout_level, expected_flevel, "LittleEndian");
 }
