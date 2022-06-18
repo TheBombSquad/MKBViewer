@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::io::BufReader;
-use std::{fs, collections};
+use std::fs;
 use std::path::PathBuf;
+
+use byteorder::{BigEndian, LittleEndian};
 
 // Instance-related stuff
 pub struct StageDefInstance {
@@ -21,8 +23,11 @@ impl StageDefInstance {
         //TODO: Implement
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
-
-        let stagedef = StageDef::new(reader, &game, &endianness)?;
+        
+        let stagedef = match endianness {
+            Endianness::BigEndian => StageDef::read_stagedef::<BigEndian, BufReader<File>>(reader, &game),
+            Endianness::LittleEndian => StageDef::read_stagedef::<LittleEndian, BufReader<File>>(reader, &game),
+        }?;
 
         Ok(Self{
             stagedef,
@@ -74,10 +79,11 @@ pub enum AnimationType {
 }
 
 #[derive(FromPrimitive, ToPrimitive)]
+#[derive(Debug, PartialEq)]
 pub enum GoalType {
-    Blue,
-    Green,
-    Red,
+    Blue = 0x0,
+    Green = 0x1,
+    Red = 0x2,
 }
 
 pub enum BananaType {
@@ -102,6 +108,7 @@ pub struct CollisionTriangle {
 pub struct Animation {
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Goal {
     pub position: Vector3,
     pub rotation: ShortVector3,
@@ -182,7 +189,7 @@ pub struct CollisionHeader {
     pub unk0xd0: u32,
     pub unk0xa6: u16,*/
 
-    goals: Vec<Goal>,
+    pub goals: Vec<Goal>,
     /*
     pub bumpers: Vec<&Bumper>,
     pub jamabars: Vec<&Jamabar>,
@@ -205,7 +212,7 @@ pub struct StageDef {
     pub fallout_level: f32,
 
     //collision_headers: Vec<CollisionHeader>,
-    goals: Vec<Goal>,
+    pub goals: Vec<Goal>,
 
 }
 
