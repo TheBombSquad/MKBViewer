@@ -1,4 +1,4 @@
-use std::{io::{self, SeekFrom, BufRead, BufReader, Seek, Error, Read, Write, BufWriter, Cursor}};
+use std::io::{self, SeekFrom, BufReader, Seek, Error, Read, Write, BufWriter, Cursor};
 use byteorder::{BigEndian, LittleEndian, ByteOrder, ReadBytesExt};
 use crate::stagedef::{StageDef, Game, Vector3, ShortVector3, Goal, GoalType};
 use num_traits::FromPrimitive;
@@ -186,8 +186,6 @@ impl StageDef {
 
         Ok(())
     }
-
-
 }
 
 #[cfg(test)]
