@@ -1,9 +1,9 @@
 #[macro_use]
-extern crate num_derive; 
+extern crate num_derive;
 
 mod app;
-mod stagedef;
 mod parser;
+mod stagedef;
 
 fn main() {
     let app = app::Application::new();

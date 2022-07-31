@@ -1,8 +1,15 @@
-use fltk::{prelude::*,
-           app::{App, Receiver, Sender, channel, self}, 
-           window::Window,
-           menu::{MenuBar, MenuFlag}, enums::{Shortcut, Align}, dialog, group::{Tabs, Group, Tile}, tree::{Tree, TreeItem}, input::{IntInput, Input}, button::Button
-           };
+use fltk::{
+    app::{self, channel, App, Receiver, Sender},
+    dialog,
+    enums::{Align, Shortcut},
+    group::{Group, Tabs, Tile},
+    input::{FloatInput, Input, IntInput},
+    menu::{MenuBar, MenuFlag},
+    misc::InputChoice,
+    prelude::*,
+    tree::{Tree, TreeItem},
+    window::Window,
+};
 
 use crate::stagedef::StageDefInstance;
 
@@ -13,9 +20,31 @@ enum Message {
     Quit,
 }
 
+trait FancyTreeFmt {
+    fn as_tree_item(&self, tree: &Tree, label: Option<&str>) -> TreeItem;
+}
+
+impl FancyTreeFmt for f32 {
+    fn as_tree_item(&self, tree: &Tree, label: Option<&str>) -> TreeItem {
+        let mut widget = FloatInput::default().with_size(50, 25);
+        if let Some(l) = label {
+            widget.set_label(l);
+        } else {
+            widget.set_label("f32:");
+        }
+
+        let mut widget_tree_item = TreeItem::new(&tree, "");
+        widget_tree_item.set_widget(&widget);
+
+        widget_tree_item
+    }
+}
+
 pub fn screen_center() -> (i32, i32) {
-    ((app::screen_size().0 / 2.0) as i32,
-     (app::screen_size().1 / 2.0) as i32)
+    (
+        (app::screen_size().0 / 2.0) as i32,
+        (app::screen_size().1 / 2.0) as i32,
+    )
 }
 
 pub struct Application {
@@ -33,34 +62,38 @@ impl Application {
         let app = App::default();
         let (sender, receiver) = channel::<Message>();
         let mut main_window = Window::default()
-                     .with_size(800,600)
-                     .with_pos(screen_center().0-400, screen_center().1-300)
-                     .with_label("MKBViewer");
+            .with_size(800, 600)
+            .with_pos(screen_center().0 - 400, screen_center().1 - 300)
+            .with_label("MKBViewer");
 
-
-        let mut menu_bar = MenuBar::new(0,0, 800, 25, None);
-        menu_bar.add_emit("File/Open...",
-                     Shortcut::None, 
-                     MenuFlag::Normal,
-                     sender.clone(),
-                     Message::OpenStagedef);
-        menu_bar.add_emit("File/Quit",
-                     Shortcut::None, 
-                     MenuFlag::Normal,
-                     sender.clone(),
-                     Message::Quit);
-        menu_bar.add_emit("Help/About",
-                     Shortcut::None, 
-                     MenuFlag::Normal,
-                     sender.clone(),
-                     Message::About);
+        let mut menu_bar = MenuBar::new(0, 0, 800, 25, None);
+        menu_bar.add_emit(
+            "File/Open...",
+            Shortcut::None,
+            MenuFlag::Normal,
+            sender.clone(),
+            Message::OpenStagedef,
+        );
+        menu_bar.add_emit(
+            "File/Quit",
+            Shortcut::None,
+            MenuFlag::Normal,
+            sender.clone(),
+            Message::Quit,
+        );
+        menu_bar.add_emit(
+            "Help/About",
+            Shortcut::None,
+            MenuFlag::Normal,
+            sender.clone(),
+            Message::About,
+        );
 
         let tabs = Tabs::new(0, 25, 800, 600, None);
-        
+
         main_window.end();
 
         let stagedef_instances: Vec<StageDefInstance> = Vec::new();
-
 
         main_window.show();
 
@@ -78,36 +111,46 @@ impl Application {
     pub fn create_stagedef_tile(window: &dyn WindowExt, stagedef: &StageDefInstance) -> Tile {
         let name = stagedef.file_path.file_stem().unwrap().to_str().unwrap();
 
-        let mut tile = Tile::new(0, 50, window.width(), window.height()-25, None); 
-        tile.set_label(name); 
-        tile.end(); 
+        let mut tile = Tile::default()
+            .with_pos(0, 50)
+            .with_size(window.width(), window.height() - 25);
+        tile.set_label(name);
 
-        let mut tree = Tree::new(0, 51, 200, window.height()-50, None);
-        tree.set_connector_style(fltk::tree::TreeConnectorStyle::Dotted);
-        tree.end();
+        let mut tree = Tree::default()
+            .with_pos(0, 51)
+            .with_size(200, window.height() - 50);
 
-        let test_input = IntInput::new(0, 0, 50, 25, "u32: ");
-        let mut test_tree_item = TreeItem::new(&tree, ""); 
-        test_tree_item.set_widget(&test_input);
-        tree.add_item("Tree item", &test_tree_item);
+        let mut tsdf = TreeItem::new(&tree, "e");
+
+        // TODO: implement
 
         /*
-        tree.set_root_label(name);
-        tree.add("Magic Numbers");
-        tree.add("Magic Numbers/No. 2");
-        let test = format!("Magic Numbers/No. 2/Float: {:#}", stagedef.stagedef.magic_number_2);
-        tree.add(test.as_str()); 
-        let test2 = format!("Magic Numbers/No. 2/u32: {:#}", stagedef.stagedef.magic_number_2);
-        tree.add(test2.as_str());
-        tree.add("Start Position"); 
-        */
+        let mut input_widget = IntInput::new(300, 300, 50, 25, "u32");
+        input_widget.set_align(Align::Right);
 
-        let main_group = Group::new(200, 51, window.width()-200, window.height()-50, None);
-        main_group.end();
+        let mut input_widget_item = TreeItem::new(&tree, "");
+        input_widget_item.set_widget(&input_widget);
+        tree.add_item("Test/", &input_widget_item);
+        let mut dropdown_widget = InputChoice::new(0, 0, 100, 25, "Type");
+        dropdown_widget.set_align(Align::Right);
+        dropdown_widget.add("Blue");
+        dropdown_widget.add("Green");
+        dropdown_widget.add("Red");
+        dropdown_widget.set_value_index(0);
 
-        tile.add(&tree);
-        tile.add(&main_group);
-        
+        let mut dropdown_widget_item = TreeItem::new(&tree, "");
+        dropdown_widget_item.set_widget(&dropdown_widget);
+        tree.add_item("Test/", &dropdown_widget_item);*/
+
+        tree.end();
+
+        let viewer = Group::default()
+            .with_pos(200, 51)
+            .with_size(window.width() - 200, window.height() - 50);
+        viewer.end();
+
+        tile.end();
+
         tile
     }
 
@@ -121,7 +164,11 @@ impl Application {
     fn on_about(&self) {
         println!("{}, {}", app::screen_size().0, app::screen_size().1);
         dialog::message_title("About MKBViewer");
-        dialog::message(screen_center().0,screen_center().1,"MKBViewer v0.1.0 - by The BombSquad");
+        dialog::message(
+            screen_center().0,
+            screen_center().1,
+            "MKBViewer v0.1.0 - by The BombSquad",
+        );
     }
 
     // Handle 'open' selection from menu
@@ -129,28 +176,30 @@ impl Application {
         let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseFile);
         dialog.set_filter("*.{lz,lz.raw}");
         dialog.show();
-        
+
         let filename = dialog.filename();
         let ext = filename.extension().unwrap_or_default();
 
         if ext == "raw" {
             match StageDefInstance::new(filename) {
                 Ok(s) => {
-                    self.tabs.add(&Application::create_stagedef_tile(&self.main_window, &s));
+                    self.tabs
+                        .add(&Application::create_stagedef_tile(&self.main_window, &s));
                     self.main_window.redraw();
                     self.stagedef_instances.push(s);
-                },
+                }
                 Err(e) => {
                     dialog::message(screen_center().0, screen_center().1, &(e.to_string()));
                 }
             }
-        }
-
-        else if ext == "lz" {
-            dialog::message(screen_center().0,screen_center().1,"Compressed stagedefs not yet supported");
-        }
-        else {
-            dialog::message(screen_center().0,screen_center().1,"No file selected");
+        } else if ext == "lz" {
+            dialog::message(
+                screen_center().0,
+                screen_center().1,
+                "Compressed stagedefs not yet supported",
+            );
+        } else {
+            dialog::message(screen_center().0, screen_center().1, "No file selected");
         }
     }
 
@@ -158,9 +207,9 @@ impl Application {
         while self.app.wait() {
             if let Some(msg) = self.receiver.recv() {
                 match msg {
-                Message::Quit => self.on_quit(),
-                Message::About => self.on_about(),
-                Message::OpenStagedef => self.on_open(),
+                    Message::Quit => self.on_quit(),
+                    Message::About => self.on_about(),
+                    Message::OpenStagedef => self.on_open(),
                 }
             }
         }

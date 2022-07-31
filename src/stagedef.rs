@@ -1,11 +1,11 @@
+use std::fs;
 use std::fs::File;
 use std::io::BufReader;
-use std::fs;
 use std::path::PathBuf;
 
 use byteorder::{BigEndian, LittleEndian};
 
-// Instance-related stuff
+// Controller stuff, handles view/model
 pub struct StageDefInstance {
     pub stagedef: StageDef,
     pub file_path: PathBuf,
@@ -23,17 +23,19 @@ impl StageDefInstance {
         //TODO: Implement
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
-        
+
+        let stagedef = StageDef::default();
+        /*
         let stagedef = match endianness {
             Endianness::BigEndian => StageDef::read_stagedef::<BigEndian, BufReader<File>>(reader, &game),
             Endianness::LittleEndian => StageDef::read_stagedef::<LittleEndian, BufReader<File>>(reader, &game),
-        }?;
+        }?;*/
 
-        Ok(Self{
+        Ok(Self {
             stagedef,
             file_path,
             game,
-            endianness
+            endianness,
         })
     }
 }
@@ -43,14 +45,14 @@ impl StageDefInstance {
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
-    pub z: f32
+    pub z: f32,
 }
 
 #[derive(Default, Debug, PartialEq)]
 pub struct ShortVector3 {
     pub x: u16,
     pub y: u16,
-    pub z: u16
+    pub z: u16,
 }
 
 pub enum Game {
@@ -75,11 +77,10 @@ pub enum AnimationState {
 pub enum AnimationType {
     LoopingAnimation,
     PlayOnceAnimation,
-    Seesaw
+    Seesaw,
 }
 
-#[derive(FromPrimitive, ToPrimitive)]
-#[derive(Debug, PartialEq)]
+#[derive(FromPrimitive, ToPrimitive, Debug, PartialEq)]
 pub enum GoalType {
     Blue = 0x0,
     Green = 0x1,
@@ -105,15 +106,14 @@ pub struct CollisionTriangle {
     pub y_bitangent: f32,
 }
 
-pub struct Animation {
-}
+pub struct Animation {}
 
 #[derive(Debug, PartialEq)]
 pub struct Goal {
     pub position: Vector3,
     pub rotation: ShortVector3,
     pub goal_type: GoalType,
-} 
+}
 
 pub struct Bumper {
     pub position: Vector3,
@@ -161,7 +161,6 @@ pub struct FalloutVolume {
     pub unk0x1e: u16,
 }
 
-
 pub struct CollisionHeader {
     pub center_of_rotation_position: f32,
     pub conveyor_vector: f32,
@@ -173,14 +172,14 @@ pub struct CollisionHeader {
     pub collision_grid_step_size_z: f32,
     pub collision_grid_step_count_x: u32,
     pub collision_grid_step_count_z: u32,
-    
+
     pub seesaw_sensitivity: f32,
     pub seesaw_friction: f32,
     pub seesaw_spring: f32,
 
     pub animation_loop_point: f32,
     pub animation_state_init: AnimationState,
-    pub animation_type: AnimationType, 
+    pub animation_type: AnimationType,
     pub animation_id: u16,
 
     pub unk0x9c: u32,
@@ -188,7 +187,6 @@ pub struct CollisionHeader {
     pub unk0xb0: u32,
     pub unk0xd0: u32,
     pub unk0xa6: u16,*/
-
     pub goals: Vec<Goal>,
     /*
     pub bumpers: Vec<&Bumper>,
@@ -198,7 +196,6 @@ pub struct CollisionHeader {
     pub sphere_collision_objects: Vec<&SphereCollisionObject>,
     pub cylinder_collision_objects: Vec<&CylinderCollisionObject>,
     pub fallout_volumes: Vec<&FalloutVolume>,*/
-
 }
 
 #[derive(Default)]
@@ -208,16 +205,19 @@ pub struct StageDef {
 
     pub start_position: Vector3,
     pub start_rotation: ShortVector3,
-    
+
     pub fallout_level: f32,
 
     //collision_headers: Vec<CollisionHeader>,
     pub goals: Vec<Goal>,
-
 }
 
 impl StageDef {
-    fn new(reader: BufReader<File> , game: &Game, endianness: &Endianness) -> Result<Self, std::io::Error>{
+    fn new(
+        reader: BufReader<File>,
+        game: &Game,
+        endianness: &Endianness,
+    ) -> Result<Self, std::io::Error> {
         todo!();
     }
 }
