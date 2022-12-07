@@ -29,7 +29,7 @@ fn main() {
 
     let web_options = eframe::WebOptions::default();
     eframe::start_web(
-        "the_canvas_id", // hardcode it
+        "mkbviewer_canvas",
         web_options,
         Box::new(|cc| Box::new(MkbViewerApp::new(cc))),
     )

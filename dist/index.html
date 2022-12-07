@@ -1,11 +1,14 @@
 <html><head>
-      <!--<link data-trunk rel="scss" href="path/to/index.scss"/>-->
-      
-<link rel="preload" href="/mkbviewer-ef1d250d40594a50_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/mkbviewer-ef1d250d40594a50.js"></head><body><canvas id="the_canvas_id"></canvas>
+      <link rel="stylesheet" href="/index-c542330cc19e586d.css">
+  
+<link rel="preload" href="/mkbviewer-3579456144308198_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/mkbviewer-3579456144308198.js"></head>
+
+  <body>
+      <canvas id="the_canvas_id"></canvas>
   
 
-<script type="module">import init from '/mkbviewer-ef1d250d40594a50.js';init('/mkbviewer-ef1d250d40594a50_bg.wasm');</script><script>(function () {
+<script type="module">import init from '/mkbviewer-3579456144308198.js';init('/mkbviewer-3579456144308198_bg.wasm');</script><script>(function () {
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var url = protocol + '//' + window.location.host + '/_trunk/ws';
     var poll_interval = 5000;
