@@ -1,3 +1,5 @@
+use std::ffi::OsStr;
+
 use fltk::{
     app::{self, channel, App, Receiver, Sender},
     dialog,
@@ -21,22 +23,19 @@ enum Message {
 }
 
 trait FancyTreeFmt {
-    fn as_tree_item(&self, tree: &Tree, label: Option<&str>) -> TreeItem;
+    fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>);
 }
 
 impl FancyTreeFmt for f32 {
-    fn as_tree_item(&self, tree: &Tree, label: Option<&str>) -> TreeItem {
-        let mut widget = FloatInput::default().with_size(50, 25);
-        if let Some(l) = label {
-            widget.set_label(l);
-        } else {
-            widget.set_label("f32:");
-        }
+    fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>) -> () {
+        let mut input_widget = FloatInput::new(300, 300, 50, 25, "f32");
+        input_widget.set_align(Align::Right);
+        let val_str = self.to_string();
+        input_widget.set_value(&val_str);
 
-        let mut widget_tree_item = TreeItem::new(&tree, "");
-        widget_tree_item.set_widget(&widget);
-
-        widget_tree_item
+        let mut input_widget_item = TreeItem::new(&tree, "");
+        input_widget_item.set_widget(&input_widget);
+        tree.add_item("Test/", &input_widget_item);
     }
 }
 
@@ -66,6 +65,8 @@ impl Application {
             .with_pos(screen_center().0 - 400, screen_center().1 - 300)
             .with_label("MKBViewer");
 
+        main_window.make_resizable(true);
+
         let mut menu_bar = MenuBar::new(0, 0, 800, 25, None);
         menu_bar.add_emit(
             "File/Open...",
@@ -89,12 +90,12 @@ impl Application {
             Message::About,
         );
 
-        let tabs = Tabs::new(0, 25, 800, 600, None);
+        let tabs = Tabs::new(0, 25, 800, 575, None);
 
         main_window.end();
 
         let stagedef_instances: Vec<StageDefInstance> = Vec::new();
-
+        
         main_window.show();
 
         Self {
@@ -108,29 +109,31 @@ impl Application {
         }
     }
 
+    // Stagedef file - so we can have multiple stagedefs open at once 
     pub fn create_stagedef_tile(window: &dyn WindowExt, stagedef: &StageDefInstance) -> Tile {
         let name = stagedef.file_path.file_stem().unwrap().to_str().unwrap();
 
         let mut tile = Tile::default()
             .with_pos(0, 50)
             .with_size(window.width(), window.height() - 25);
+
         tile.set_label(name);
 
         let mut tree = Tree::default()
             .with_pos(0, 51)
             .with_size(200, window.height() - 50);
 
-        let mut tsdf = TreeItem::new(&tree, "e");
 
-        // TODO: implement
-
-        /*
+        let name = stagedef.file_path.file_stem().unwrap_or(OsStr::new("STAGEDEF")).to_str().unwrap_or("STAGEDEF");
+        
+        // TEST TREE STUFF
         let mut input_widget = IntInput::new(300, 300, 50, 25, "u32");
         input_widget.set_align(Align::Right);
 
         let mut input_widget_item = TreeItem::new(&tree, "");
         input_widget_item.set_widget(&input_widget);
         tree.add_item("Test/", &input_widget_item);
+
         let mut dropdown_widget = InputChoice::new(0, 0, 100, 25, "Type");
         dropdown_widget.set_align(Align::Right);
         dropdown_widget.add("Blue");
@@ -140,8 +143,8 @@ impl Application {
 
         let mut dropdown_widget_item = TreeItem::new(&tree, "");
         dropdown_widget_item.set_widget(&dropdown_widget);
-        tree.add_item("Test/", &dropdown_widget_item);*/
-
+        tree.add_item("Test/", &dropdown_widget_item);
+        
         tree.end();
 
         let viewer = Group::default()
@@ -183,8 +186,9 @@ impl Application {
         if ext == "raw" {
             match StageDefInstance::new(filename) {
                 Ok(s) => {
-                    self.tabs
-                        .add(&Application::create_stagedef_tile(&self.main_window, &s));
+                    let stagedef_tile = &Application::create_stagedef_tile(&self.main_window, &s);
+                    self.tabs.add(stagedef_tile);
+                    self.main_window.resizable(stagedef_tile);
                     self.main_window.redraw();
                     self.stagedef_instances.push(s);
                 }
