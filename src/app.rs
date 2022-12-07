@@ -1,27 +1,16 @@
 use std::ffi::OsStr;
 
-use fltk::{
-    app::{self, channel, App, Receiver, Sender},
-    dialog,
-    enums::{Align, Shortcut},
-    group::{Group, Tabs, Tile},
-    input::{FloatInput, Input, IntInput},
-    menu::{MenuBar, MenuFlag},
-    misc::InputChoice,
-    prelude::*,
-    tree::{Tree, TreeItem},
-    window::Window,
-};
-
 use crate::stagedef::StageDefInstance;
 
+/*
 #[derive(Clone)]
 enum Message {
     OpenStagedef,
     About,
     Quit,
-}
+} */
 
+/*
 trait FancyTreeFmt {
     fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>);
 }
@@ -46,6 +35,7 @@ pub fn screen_center() -> (i32, i32) {
     )
 }
 
+
 pub struct Application {
     app: App,
     main_window: Window,
@@ -57,6 +47,7 @@ pub struct Application {
 }
 
 impl Application {
+    
     pub fn new() -> Self {
         let app = App::default();
         let (sender, receiver) = channel::<Message>();
@@ -109,6 +100,7 @@ impl Application {
         }
     }
 
+    
     // Stagedef file - so we can have multiple stagedefs open at once 
     pub fn create_stagedef_tile(window: &dyn WindowExt, stagedef: &StageDefInstance) -> Tile {
         let name = stagedef.file_path.file_stem().unwrap().to_str().unwrap();
@@ -157,6 +149,7 @@ impl Application {
         tile
     }
 
+    
     // Handle 'quit' selection from menu
     fn on_quit(&self) {
         println!("Quitting...");
@@ -218,4 +211,5 @@ impl Application {
             }
         }
     }
-}
+    
+}*/
