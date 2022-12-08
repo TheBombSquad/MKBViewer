@@ -1,6 +1,53 @@
-use std::ffi::OsStr;
+use egui::{TopBottomPanel, CentralPanel, Separator};
+use tracing::{Level, event, span};
 
 use crate::stagedef::StageDefInstance;
+
+
+#[derive(Default)]
+pub struct MkbViewerApp {}
+
+impl MkbViewerApp {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
+        // Restore app state using cc.storage (requires the "persistence" feature).
+        // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
+        // for e.g. egui::PaintCallback.
+        Self::default()
+    }
+}
+
+impl eframe::App for MkbViewerApp {
+   fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+       TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
+           ui.menu_button("File", |ui| {
+                if ui.button (" Open...").clicked() {
+                    event!(Level::INFO, "Opening file");
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                ui.add(Separator::default().spacing(0.0));
+
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui.button (" Quit").clicked() {
+                    event!(Level::INFO, "Quitting...");
+                    frame.close();
+                }
+           });
+       });
+
+       TopBottomPanel::top("mkbviewer_toolbar").min_height(32.0).show(ctx, |ui| {
+           ui.horizontal_centered(|ui| {
+            ui.label("Toolbar goes here...");
+           });
+       });
+
+       CentralPanel::default().show(ctx, |ui| {
+           ui.centered_and_justified(|ui| {
+               ui.label("No stagedef currently loaded - go to File->Open to add one!");
+           });
+       });
+   }
+}
 
 /*
 #[derive(Clone)]

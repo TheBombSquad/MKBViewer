@@ -1268,6 +1268,7 @@ dependencies = [
  "egui",
  "num-derive",
  "num-traits",
+ "tracing",
  "tracing-subscriber",
  "tracing-wasm",
 ]
