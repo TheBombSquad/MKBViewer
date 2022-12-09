@@ -1,18 +1,18 @@
-use egui::{TopBottomPanel, CentralPanel, Separator};
+use crate::stagedef::StageDefInstance;
+use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
-use rfd::FileHandle;
 use rfd::AsyncFileDialog;
-use tracing::{Level, event, span};
+use rfd::FileHandle;
 use std::future::Future;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::vec::Vec;
-use crate::stagedef::StageDefInstance;
+use tracing::{event, span, Level};
 
 #[derive(Default)]
 pub struct MkbViewerApp {
-    pending_stagedef_to_load: Option<Promise<Vec<u8>>>
+    pending_stagedef_to_load: Option<Promise<Vec<u8>>>,
 }
 
 impl MkbViewerApp {
@@ -26,18 +26,17 @@ impl MkbViewerApp {
 }
 
 impl eframe::App for MkbViewerApp {
-   fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-
-       if let Some(p) = &self.pending_stagedef_to_load {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Some(p) = &self.pending_stagedef_to_load {
             if let Some(f) = p.ready() {
                 event!(Level::INFO, "{:?}", f);
                 self.pending_stagedef_to_load = None;
             }
         }
 
-       TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
-           ui.menu_button("File", |ui| {
-                if ui.button (" Open...").clicked() {
+        TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
+            ui.menu_button("File", |ui| {
+                if ui.button(" Open...").clicked() {
                     event!(Level::INFO, "Opening file");
                     self.pending_stagedef_to_load = get_file_from_dialog();
                 }
@@ -45,25 +44,27 @@ impl eframe::App for MkbViewerApp {
                 ui.add(Separator::default().spacing(0.0));
 
                 #[cfg(not(target_arch = "wasm32"))]
-                if ui.button (" Quit").clicked() {
+                if ui.button(" Quit").clicked() {
                     event!(Level::INFO, "Quitting...");
                     frame.close();
                 }
-           });
-       });
+            });
+        });
 
-       TopBottomPanel::top("mkbviewer_toolbar").min_height(32.0).show(ctx, |ui| {
-           ui.horizontal_centered(|ui| {
-            ui.label("Toolbar goes here...");
-           });
-       });
+        TopBottomPanel::top("mkbviewer_toolbar")
+            .min_height(32.0)
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.label("Toolbar goes here...");
+                });
+            });
 
-       CentralPanel::default().show(ctx, |ui| {
-           ui.centered_and_justified(|ui| {
-               ui.label("No stagedef currently loaded - go to File->Open to add one!");
-           });
-       });
-   }
+        CentralPanel::default().show(ctx, |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.label("No stagedef currently loaded - go to File->Open to add one!");
+            });
+        });
+    }
 }
 
 enum RootWindowState {
@@ -79,7 +80,7 @@ fn get_file_from_dialog() -> Option<Promise<Vec<u8>>> {
         let data = file.unwrap().read().await;
         data
     }));
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     let promise = Some(Promise::spawn_thread("get_file_from_dialog_native", || {
         let file_dialog_future = async {
@@ -88,7 +89,7 @@ fn get_file_from_dialog() -> Option<Promise<Vec<u8>>> {
             data
         };
         block_on(file_dialog_future)
-    })); 
+    }));
 
     promise
 }
@@ -110,8 +111,8 @@ impl FancyTreeFmt for f32 {
     }
 }
 
-    
-    // Stagedef file - so we can have multiple stagedefs open at once 
+
+    // Stagedef file - so we can have multiple stagedefs open at once
     pub fn create_stagedef_tile(window: &dyn WindowExt, stagedef: &StageDefInstance) -> Tile {
         let name = stagedef.file_path.file_stem().unwrap().to_str().unwrap();
 
@@ -127,7 +128,7 @@ impl FancyTreeFmt for f32 {
 
 
         let name = stagedef.file_path.file_stem().unwrap_or(OsStr::new("STAGEDEF")).to_str().unwrap_or("STAGEDEF");
-        
+
         // TEST TREE STUFF
         let mut input_widget = IntInput::new(300, 300, 50, 25, "u32");
         input_widget.set_align(Align::Right);
@@ -146,7 +147,7 @@ impl FancyTreeFmt for f32 {
         let mut dropdown_widget_item = TreeItem::new(&tree, "");
         dropdown_widget_item.set_widget(&dropdown_widget);
         tree.add_item("Test/", &dropdown_widget_item);
-        
+
         tree.end();
 
         let viewer = Group::default()
@@ -159,7 +160,7 @@ impl FancyTreeFmt for f32 {
         tile
     }
 
-    
+
     // Handle 'quit' selection from menu
     fn on_quit(&self) {
         println!("Quitting...");
@@ -209,5 +210,5 @@ impl FancyTreeFmt for f32 {
             dialog::message(screen_center().0, screen_center().1, "No file selected");
         }
     }
-    
+
 }*/
