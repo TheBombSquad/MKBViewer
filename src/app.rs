@@ -1,11 +1,19 @@
 use egui::{TopBottomPanel, CentralPanel, Separator};
+use futures::executor::block_on;
+use poll_promise::Promise;
+use rfd::FileHandle;
+use rfd::AsyncFileDialog;
 use tracing::{Level, event, span};
-
+use std::future::Future;
+use std::sync::Mutex;
+use std::sync::Arc;
+use std::vec::Vec;
 use crate::stagedef::StageDefInstance;
 
-
 #[derive(Default)]
-pub struct MkbViewerApp {}
+pub struct MkbViewerApp {
+    pending_stagedef_to_load: Option<Promise<Vec<u8>>>
+}
 
 impl MkbViewerApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -19,10 +27,19 @@ impl MkbViewerApp {
 
 impl eframe::App for MkbViewerApp {
    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+
+       if let Some(p) = &self.pending_stagedef_to_load {
+            if let Some(f) = p.ready() {
+                event!(Level::INFO, "{:?}", f);
+                self.pending_stagedef_to_load = None;
+            }
+        }
+
        TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
            ui.menu_button("File", |ui| {
                 if ui.button (" Open...").clicked() {
                     event!(Level::INFO, "Opening file");
+                    self.pending_stagedef_to_load = get_file_from_dialog();
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 ui.add(Separator::default().spacing(0.0));
@@ -49,14 +66,32 @@ impl eframe::App for MkbViewerApp {
    }
 }
 
-/*
-#[derive(Clone)]
-enum Message {
-    OpenStagedef,
-    About,
-    Quit,
-} */
+enum RootWindowState {
+    Idle,
+    LoadingStagedef,
+    LoadingWsmodConfig,
+}
 
+fn get_file_from_dialog() -> Option<Promise<Vec<u8>>> {
+    #[cfg(target_arch = "wasm32")]
+    let promise = Some(Promise::spawn_async(async {
+        let file = AsyncFileDialog::new().pick_file().await;
+        let data = file.unwrap().read().await;
+        data
+    }));
+    
+    #[cfg(not(target_arch = "wasm32"))]
+    let promise = Some(Promise::spawn_thread("get_file_from_dialog_native", || {
+        let file_dialog_future = async {
+            let file = AsyncFileDialog::new().pick_file().await;
+            let data = file.unwrap().read().await;
+            data
+        };
+        block_on(file_dialog_future)
+    })); 
+
+    promise
+}
 /*
 trait FancyTreeFmt {
     fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>);
@@ -74,78 +109,6 @@ impl FancyTreeFmt for f32 {
         tree.add_item("Test/", &input_widget_item);
     }
 }
-
-pub fn screen_center() -> (i32, i32) {
-    (
-        (app::screen_size().0 / 2.0) as i32,
-        (app::screen_size().1 / 2.0) as i32,
-    )
-}
-
-
-pub struct Application {
-    app: App,
-    main_window: Window,
-    menu_bar: MenuBar,
-    tabs: Tabs,
-    stagedef_instances: Vec<StageDefInstance>,
-    sender: Sender<Message>,
-    receiver: Receiver<Message>,
-}
-
-impl Application {
-    
-    pub fn new() -> Self {
-        let app = App::default();
-        let (sender, receiver) = channel::<Message>();
-        let mut main_window = Window::default()
-            .with_size(800, 600)
-            .with_pos(screen_center().0 - 400, screen_center().1 - 300)
-            .with_label("MKBViewer");
-
-        main_window.make_resizable(true);
-
-        let mut menu_bar = MenuBar::new(0, 0, 800, 25, None);
-        menu_bar.add_emit(
-            "File/Open...",
-            Shortcut::None,
-            MenuFlag::Normal,
-            sender.clone(),
-            Message::OpenStagedef,
-        );
-        menu_bar.add_emit(
-            "File/Quit",
-            Shortcut::None,
-            MenuFlag::Normal,
-            sender.clone(),
-            Message::Quit,
-        );
-        menu_bar.add_emit(
-            "Help/About",
-            Shortcut::None,
-            MenuFlag::Normal,
-            sender.clone(),
-            Message::About,
-        );
-
-        let tabs = Tabs::new(0, 25, 800, 575, None);
-
-        main_window.end();
-
-        let stagedef_instances: Vec<StageDefInstance> = Vec::new();
-        
-        main_window.show();
-
-        Self {
-            app,
-            main_window,
-            menu_bar,
-            tabs,
-            stagedef_instances,
-            sender,
-            receiver,
-        }
-    }
 
     
     // Stagedef file - so we can have multiple stagedefs open at once 
@@ -244,18 +207,6 @@ impl Application {
             );
         } else {
             dialog::message(screen_center().0, screen_center().1, "No file selected");
-        }
-    }
-
-    pub fn run(mut self) {
-        while self.app.wait() {
-            if let Some(msg) = self.receiver.recv() {
-                match msg {
-                    Message::Quit => self.on_quit(),
-                    Message::About => self.on_about(),
-                    Message::OpenStagedef => self.on_open(),
-                }
-            }
         }
     }
     

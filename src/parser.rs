@@ -3,8 +3,6 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 use num_traits::FromPrimitive;
 use std::io::{self, BufReader, BufWriter, Cursor, Error, Read, Seek, SeekFrom, Write};
 
-#[allow(dead_code)]
-
 const fn from_start(offset: u32) -> Option<SeekFrom> {
     Some(SeekFrom::Start(offset as u64))
 }
