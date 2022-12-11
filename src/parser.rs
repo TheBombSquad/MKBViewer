@@ -1,3 +1,4 @@
+//! Handles parsing of an uncompressed Monkey Ball stage binary.
 use crate::stagedef::{Game, Goal, GoalType, ShortVector3, StageDef, Vector3};
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 use num_traits::FromPrimitive;

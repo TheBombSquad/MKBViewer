@@ -1,21 +1,19 @@
+//! Handles all the UI-related activities
 use crate::stagedef::StageDefInstance;
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
 use rfd::AsyncFileDialog;
 use rfd::FileHandle;
-use std::ffi::OsStr;
-use std::ffi::OsString;
-use std::future::Future;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::vec::Vec;
-use tracing::{event, span, Level};
+use tracing::{event, Level};
 
+/// Our root window.
 #[derive(Default)]
 pub struct MkbViewerApp {
-    pending_stagedef_to_load: Option<Promise<Option<FileHandleWrapper>>>,
+    /// A file pending to load, which we will split off into a new window to handle once the
+    /// promise has a result.
+    pending_file_to_load: Option<Promise<Option<FileHandleWrapper>>>,
 }
 
 impl MkbViewerApp {
@@ -26,37 +24,46 @@ impl MkbViewerApp {
         // for e.g. egui::PaintCallback.
         Self::default()
     }
-    
+
+    /// Open a file dialog with the given restriction on file type.
     // TODO: Support for WSMod configs
     fn open_file_dialog(&mut self, file_type: MkbFileType) {
-        self.pending_stagedef_to_load = Some(MkbViewerApp::get_promise_from_file_dialog(file_type)); 
+        self.pending_file_to_load = Some(MkbViewerApp::get_promise_from_file_dialog(file_type));
     }
 
+    /// Poll [`pending_file_to_load`](MkbViewerApp::pending_file_to_load) for a file to load, handle it based on the assigned type.
+    ///
+    /// This is run every frame.
     fn poll_pending_file(&mut self) {
-        let Some(promise) = &self.pending_stagedef_to_load else { return; };
-        let Some(filehandle_opt) = promise.ready() else { return; }; 
+        let Some(promise) = &self.pending_file_to_load else { return; };
+        let Some(filehandle_opt) = promise.ready() else { return; };
         let Some(filehandle) = filehandle_opt else {
             event!(Level::INFO, "Pending file was not read");
+            self.pending_file_to_load = None;
             return;
-        }; 
-        
+        };
+
         event!(Level::INFO, "Loaded pending file: {:?}", filehandle);
-        self.pending_stagedef_to_load = None;
+        self.pending_file_to_load = None;
     }
 
-    fn get_promise_from_file_dialog(filter_type: MkbFileType) -> Promise<Option<FileHandleWrapper>> {
-        let filter = MkbFileType::get_rfd_extension_filter(filter_type);
+    /// Creates a promise for loading of files from a file picker.
+    ///
+    /// Spawns a new thread on native, otherwise handles asyncronously on Wasm32.
+    fn get_promise_from_file_dialog(
+        filter_type: MkbFileType,
+    ) -> Promise<Option<FileHandleWrapper>> {
+        let filter = MkbFileType::get_rfd_extension_filter(&filter_type);
 
         #[cfg(target_arch = "wasm32")]
         let promise = Promise::spawn_async(async {
             let file_dialog = AsyncFileDialog::new()
-                             .add_filter(filter.0, filter.1)
-                             .pick_file()
-                             .await;
+                .add_filter(filter.0, filter.1)
+                .pick_file()
+                .await;
             if let Some(f) = file_dialog {
-                Some(FileHandleWrapper::new(f).await)
-            }
-            else {
+                Some(FileHandleWrapper::new(f, filter_type).await)
+            } else {
                 None
             }
         });
@@ -65,16 +72,15 @@ impl MkbViewerApp {
         let promise = Promise::spawn_thread("get_file_from_dialog_native", || {
             let file_dialog_future = async {
                 let file_dialog = AsyncFileDialog::new()
-                                 .add_filter(filter.0, filter.1)
-                                 .pick_file()
-                                 .await;
+                    .add_filter(filter.0, filter.1)
+                    .pick_file()
+                    .await;
                 if let Some(f) = file_dialog {
-                    Some(FileHandleWrapper::new(f).await)
-                }
-                else {
+                    Some(FileHandleWrapper::new(f, filter_type).await)
+                } else {
                     None
                 }
-                };
+            };
             block_on(file_dialog_future)
         });
 
@@ -89,7 +95,7 @@ impl eframe::App for MkbViewerApp {
         TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button(" Open...").clicked() {
-                    event!(Level::INFO, "Opening file"); 
+                    event!(Level::INFO, "Opening file");
                     self.open_file_dialog(MkbFileType::StagedefType);
                 }
 
@@ -121,40 +127,44 @@ impl eframe::App for MkbViewerApp {
     }
 }
 
-/// Stores only the file contents and name from a FileHandle
-/// 
-/// Because a plain FileHandle is annoying to deal with on wasm
+/// Represents the contents, file name, and type of a specific file.
+///
+/// We wrap `FileHandle` because it cannot be polled every frame easily on Wasm32.
 #[derive(Debug)]
 pub struct FileHandleWrapper {
     buffer: Vec<u8>,
-    filename: String,
+    file_name: String,
+    file_type: MkbFileType,
 }
 
 impl FileHandleWrapper {
-    pub async fn new(fh: FileHandle) -> Self {
+    pub async fn new(fh: FileHandle, file_type: MkbFileType) -> Self {
         Self {
             buffer: fh.read().await,
             // TODO: Verify that this works with non-UTF8 filenames
-            filename: fh.file_name(),
+            file_name: fh.file_name(),
+            file_type,
         }
     }
-
 }
 
+/// Represents which type of file we are expecting from a file picker.
+#[derive(Debug)]
 pub enum MkbFileType {
     StagedefType,
     WsModConfigType,
 }
 
 impl MkbFileType {
-    pub fn get_rfd_extension_filter(filter: MkbFileType) -> (&'static str, &'static [&'static str]) {
+    pub fn get_rfd_extension_filter(
+        filter: &MkbFileType,
+    ) -> (&'static str, &'static [&'static str]) {
         match filter {
             MkbFileType::StagedefType => (&("Stagedef files"), &["lz", "lz.raw"]),
-            MkbFileType::WsModConfigType => (&("Workshop Mod config files"), &["txt"])
+            MkbFileType::WsModConfigType => (&("Workshop Mod config files"), &["txt"]),
         }
     }
 }
-
 
 /*
 trait FancyTreeFmt {

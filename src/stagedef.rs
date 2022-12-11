@@ -1,3 +1,4 @@
+//! Handles representation of the Monkey Ball stagedef format
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;

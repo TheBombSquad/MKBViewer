@@ -1,3 +1,5 @@
+//! A viewer and editor for Monkey Ball stage files written in Rust that runs on native platforms
+//! as well as on the web.
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
