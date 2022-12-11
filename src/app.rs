@@ -4,7 +4,10 @@ use futures::executor::block_on;
 use poll_promise::Promise;
 use rfd::AsyncFileDialog;
 use rfd::FileHandle;
+use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::vec::Vec;
@@ -12,7 +15,7 @@ use tracing::{event, span, Level};
 
 #[derive(Default)]
 pub struct MkbViewerApp {
-    pending_stagedef_to_load: Option<Promise<Vec<u8>>>,
+    pending_stagedef_to_load: Option<Promise<Option<FileHandleWrapper>>>,
 }
 
 impl MkbViewerApp {
@@ -23,23 +26,74 @@ impl MkbViewerApp {
         // for e.g. egui::PaintCallback.
         Self::default()
     }
+    
+    // TODO: Support for WSMod configs
+    fn open_file_dialog(&mut self, file_type: MkbFileType) {
+        self.pending_stagedef_to_load = Some(MkbViewerApp::get_promise_from_file_dialog(file_type)); 
+    }
+
+    fn poll_pending_file(&mut self) {
+        let Some(promise) = &self.pending_stagedef_to_load else { return; };
+        let Some(filehandle_opt) = promise.ready() else { return; }; 
+        let Some(filehandle) = filehandle_opt else {
+            event!(Level::INFO, "Pending file was not read");
+            return;
+        }; 
+        
+        event!(Level::INFO, "Loaded pending file: {:?}", filehandle);
+        self.pending_stagedef_to_load = None;
+    }
+
+    fn get_promise_from_file_dialog(filter_type: MkbFileType) -> Promise<Option<FileHandleWrapper>> {
+        let filter = MkbFileType::get_rfd_extension_filter(filter_type);
+
+        #[cfg(target_arch = "wasm32")]
+        let promise = Promise::spawn_async(async {
+            let file_dialog = AsyncFileDialog::new()
+                             .add_filter(filter.0, filter.1)
+                             .pick_file()
+                             .await;
+            if let Some(f) = file_dialog {
+                Some(FileHandleWrapper::new(f).await)
+            }
+            else {
+                None
+            }
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let promise = Promise::spawn_thread("get_file_from_dialog_native", || {
+            let file_dialog_future = async {
+                let file_dialog = AsyncFileDialog::new()
+                                 .add_filter(filter.0, filter.1)
+                                 .pick_file()
+                                 .await;
+                if let Some(f) = file_dialog {
+                    Some(FileHandleWrapper::new(f).await)
+                }
+                else {
+                    None
+                }
+                };
+            block_on(file_dialog_future)
+        });
+
+        promise
+    }
 }
 
 impl eframe::App for MkbViewerApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if let Some(p) = &self.pending_stagedef_to_load {
-            if let Some(f) = p.ready() {
-                event!(Level::INFO, "{:?}", f);
-                self.pending_stagedef_to_load = None;
-            }
-        }
+        self.poll_pending_file();
 
         TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button(" Open...").clicked() {
-                    event!(Level::INFO, "Opening file");
-                    self.pending_stagedef_to_load = get_file_from_dialog();
+                    event!(Level::INFO, "Opening file"); 
+                    self.open_file_dialog(MkbFileType::StagedefType);
                 }
+
+                // Can't quit on web...
                 #[cfg(not(target_arch = "wasm32"))]
                 ui.add(Separator::default().spacing(0.0));
 
@@ -67,32 +121,41 @@ impl eframe::App for MkbViewerApp {
     }
 }
 
-enum RootWindowState {
-    Idle,
-    LoadingStagedef,
-    LoadingWsmodConfig,
+/// Stores only the file contents and name from a FileHandle
+/// 
+/// Because a plain FileHandle is annoying to deal with on wasm
+#[derive(Debug)]
+pub struct FileHandleWrapper {
+    buffer: Vec<u8>,
+    filename: String,
 }
 
-fn get_file_from_dialog() -> Option<Promise<Vec<u8>>> {
-    #[cfg(target_arch = "wasm32")]
-    let promise = Some(Promise::spawn_async(async {
-        let file = AsyncFileDialog::new().pick_file().await;
-        let data = file.unwrap().read().await;
-        data
-    }));
+impl FileHandleWrapper {
+    pub async fn new(fh: FileHandle) -> Self {
+        Self {
+            buffer: fh.read().await,
+            // TODO: Verify that this works with non-UTF8 filenames
+            filename: fh.file_name(),
+        }
+    }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    let promise = Some(Promise::spawn_thread("get_file_from_dialog_native", || {
-        let file_dialog_future = async {
-            let file = AsyncFileDialog::new().pick_file().await;
-            let data = file.unwrap().read().await;
-            data
-        };
-        block_on(file_dialog_future)
-    }));
-
-    promise
 }
+
+pub enum MkbFileType {
+    StagedefType,
+    WsModConfigType,
+}
+
+impl MkbFileType {
+    pub fn get_rfd_extension_filter(filter: MkbFileType) -> (&'static str, &'static [&'static str]) {
+        match filter {
+            MkbFileType::StagedefType => (&("Stagedef files"), &["lz", "lz.raw"]),
+            MkbFileType::WsModConfigType => (&("Workshop Mod config files"), &["txt"])
+        }
+    }
+}
+
+
 /*
 trait FancyTreeFmt {
     fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>);
