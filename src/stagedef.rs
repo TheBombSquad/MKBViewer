@@ -1,47 +1,64 @@
 //! Handles representation of the Monkey Ball stagedef format
-use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::{fs, io::Cursor};
 
 use byteorder::{BigEndian, LittleEndian};
 
-// Controller stuff, handles view/model
+use crate::app::FileHandleWrapper;
+
+/// Contains a StageDef, as well as extra information about the file
+///
+/// By default, this will be a big-endian SMB2 stagedef
+#[derive(Default)]
 pub struct StageDefInstance {
     pub stagedef: StageDef,
-    pub file_path: PathBuf,
     pub game: Game,
     pub endianness: Endianness,
+    file: FileHandleWrapper,
 }
 
 impl StageDefInstance {
-    pub fn new(path: PathBuf) -> Result<Self, std::io::Error> {
-        let file = fs::File::open(&path)?;
-        let reader = BufReader::new(file);
-
-        let file_path = path;
-
-        //TODO: Implement
+    pub fn new(file: FileHandleWrapper) -> Result<Self, std::io::Error> {
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
-
         let stagedef = StageDef::default();
-        /*
+
+        let mut reader = file.get_cursor();
+        //TODO: Implement endianness/game selection
+
         let stagedef = match endianness {
-            Endianness::BigEndian => StageDef::read_stagedef::<BigEndian, BufReader<File>>(reader, &game),
-            Endianness::LittleEndian => StageDef::read_stagedef::<LittleEndian, BufReader<File>>(reader, &game),
-        }?;*/
+            Endianness::BigEndian => {
+                StageDef::read_stagedef::<BigEndian, Cursor<Vec<u8>>>(&mut reader, &game)
+            }
+            Endianness::LittleEndian => {
+                StageDef::read_stagedef::<LittleEndian, Cursor<Vec<u8>>>(&mut reader, &game)
+            }
+        }?;
 
         Ok(Self {
             stagedef,
-            file_path,
             game,
             endianness,
+            file,
         })
+    }
+
+    pub fn with_endianness(mut self, endianness: Endianness) -> StageDefInstance {
+        self.endianness = endianness;
+        self
+    }
+
+    pub fn with_game(mut self, game: Game) -> StageDefInstance {
+        self.game = game;
+        self
     }
 }
 
 // Common structures/enums
+
+/// 32-bit floating point 3 dimensional vector.
 #[derive(Default, Debug, PartialEq)]
 pub struct Vector3 {
     pub x: f32,
@@ -49,6 +66,7 @@ pub struct Vector3 {
     pub z: f32,
 }
 
+/// 16-bit 'short' 3 dimensional vector. Used to represent rotations in Monkey Ball stagedefs.
 #[derive(Default, Debug, PartialEq)]
 pub struct ShortVector3 {
     pub x: u16,
@@ -62,9 +80,21 @@ pub enum Game {
     SMBDX,
 }
 
+impl Default for Game {
+    fn default() -> Self {
+        Game::SMB2
+    }
+}
+
 pub enum Endianness {
     BigEndian,
     LittleEndian,
+}
+
+impl Default for Endianness {
+    fn default() -> Self {
+        Endianness::BigEndian
+    }
 }
 
 pub enum AnimationState {

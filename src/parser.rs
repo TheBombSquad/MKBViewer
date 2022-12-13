@@ -123,11 +123,10 @@ const SMB2_FORMAT: StageDefFormat = StageDefFormat {
 
 impl StageDef {
     pub fn read_stagedef<T: ByteOrder, RW: Read + Seek>(
-        file: RW,
+        file: &mut RW,
         game: &Game,
     ) -> io::Result<StageDef> {
         let mut stagedef = StageDef::default();
-        let mut reader = BufReader::new(file);
         //let mut removethis_writer = BufWriter::new(file);
         let format = match game {
             //TODO: Implement SMB1 support
@@ -135,13 +134,13 @@ impl StageDef {
             Game::SMB2 | Game::SMBDX => SMB2_FORMAT,
         };
 
-        StageDef::read_header::<T, RW>(&mut stagedef, &mut reader, &format)?;
+        StageDef::read_header::<T, RW>(&mut stagedef, file, &format)?;
 
         Ok(stagedef)
     }
 
     fn read_offset_and_seek<T: ByteOrder, RW: Read + Seek>(
-        reader: &mut BufReader<RW>,
+        reader: &mut RW,
         offset: SeekFrom,
     ) -> io::Result<()> {
         reader.seek(offset)?;
@@ -152,7 +151,7 @@ impl StageDef {
 
     fn read_header<T: ByteOrder, RW: Read + Seek>(
         stagedef: &mut StageDef,
-        reader: &mut BufReader<RW>,
+        reader: &mut RW,
         format: &StageDefFormat,
     ) -> io::Result<()> {
         // Read magic numbers

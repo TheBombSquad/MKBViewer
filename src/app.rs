@@ -1,10 +1,12 @@
 //! Handles all the UI-related activities
 use crate::stagedef::StageDefInstance;
+use egui::Window;
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
 use rfd::AsyncFileDialog;
 use rfd::FileHandle;
+use std::io::Cursor;
 use std::vec::Vec;
 use tracing::{event, Level};
 
@@ -14,6 +16,7 @@ pub struct MkbViewerApp {
     /// A file pending to load, which we will split off into a new window to handle once the
     /// promise has a result.
     pending_file_to_load: Option<Promise<Option<FileHandleWrapper>>>,
+    stagedef_viewers: Vec<StageDefInstance>,
 }
 
 impl MkbViewerApp {
@@ -43,7 +46,11 @@ impl MkbViewerApp {
             return;
         };
 
-        event!(Level::INFO, "Loaded pending file: {:?}", filehandle);
+        event!(
+            Level::INFO,
+            "Loading pending file: {}",
+            filehandle.file_name
+        );
         self.pending_file_to_load = None;
     }
 
@@ -92,6 +99,7 @@ impl eframe::App for MkbViewerApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.poll_pending_file();
 
+        // Menubar
         TopBottomPanel::top("mkbviewer_menubar").show(ctx, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button(" Open...").clicked() {
@@ -111,6 +119,7 @@ impl eframe::App for MkbViewerApp {
             });
         });
 
+        // Toolbar
         TopBottomPanel::top("mkbviewer_toolbar")
             .min_height(32.0)
             .show(ctx, |ui| {
@@ -119,22 +128,27 @@ impl eframe::App for MkbViewerApp {
                 });
             });
 
+        // Central panel
         CentralPanel::default().show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
                 ui.label("No stagedef currently loaded - go to File->Open to add one!");
             });
         });
+
+        for viewer in self.stagedef_viewers.iter() {
+            //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
+        }
     }
 }
 
 /// Represents the contents, file name, and type of a specific file.
 ///
-/// We wrap `FileHandle` because it cannot be polled every frame easily on Wasm32.
-#[derive(Debug)]
+/// We use this in place of `FileHandle` because it cannot be polled every frame easily on Wasm32.
+#[derive(Debug, Default)]
 pub struct FileHandleWrapper {
-    buffer: Vec<u8>,
-    file_name: String,
-    file_type: MkbFileType,
+    pub buffer: Vec<u8>,
+    pub file_name: String,
+    pub file_type: MkbFileType,
 }
 
 impl FileHandleWrapper {
@@ -146,13 +160,30 @@ impl FileHandleWrapper {
             file_type,
         }
     }
+
+    pub fn with_buffer(mut self, buffer: Vec<u8>) -> FileHandleWrapper {
+        self.buffer = buffer;
+        self
+    }
+
+    pub fn get_cursor(&self) -> Cursor<Vec<u8>> {
+        Cursor::new(self.buffer.clone())
+    }
 }
 
 /// Represents which type of file we are expecting from a file picker.
+///
+/// By default, this will be a [StagedefType](MkbFileType::StagedefType).
 #[derive(Debug)]
 pub enum MkbFileType {
     StagedefType,
     WsModConfigType,
+}
+
+impl Default for MkbFileType {
+    fn default() -> Self {
+        MkbFileType::StagedefType
+    }
 }
 
 impl MkbFileType {
