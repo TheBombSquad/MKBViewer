@@ -1,6 +1,6 @@
 //! Handles all the UI-related activities
 use crate::stagedef::{StageDef, StageDefInstance};
-use egui::{Window, Label, Frame, Button};
+use egui::{Button, Frame, Label, Window};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
@@ -45,7 +45,7 @@ impl MkbViewerApp {
         let pending_file_to_load = self.pending_file_to_load.take();
 
         // Checks if we even have a promise to wait on
-        let Some(promise) = pending_file_to_load else { 
+        let Some(promise) = pending_file_to_load else {
             trace!("No file open promise check"); 
             return;
         };
@@ -68,7 +68,7 @@ impl MkbViewerApp {
         // If it has completed, check to see if it returned anything
         let Some(filehandle) = filehandle_opt else {
             event!(Level::INFO, "No file was selected");
-            self.state = self.get_non_loading_state(); 
+            self.state = self.get_non_loading_state();
             self.pending_file_to_load = None;
             return;
         };
@@ -90,7 +90,7 @@ impl MkbViewerApp {
 
         self.stagedef_viewers.push(new_instance_test);
 
-        self.state = self.get_non_loading_state(); 
+        self.state = self.get_non_loading_state();
         self.pending_file_to_load = None;
     }
 
@@ -133,7 +133,7 @@ impl MkbViewerApp {
 
         promise
     }
-    
+
     /// Handle the central widget's panel, which will display something depending on whether or not
     /// a stagedef is loaded.
     pub fn get_central_widget_frame(&mut self, ctx: &egui::Context) {
@@ -142,9 +142,9 @@ impl MkbViewerApp {
         panel.show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
                 match state {
-                    CentralWidgetState::NoStagedefLoaded => { 
+                    CentralWidgetState::NoStagedefLoaded => {
                         ui.label("No stagedef currently loaded - go to File->Open to add one")
-                    },
+                    }
                     CentralWidgetState::Loading => ui.label("Loading file..."),
                     CentralWidgetState::StagedefLoaded => ui.label(""),
                 };
@@ -155,9 +155,12 @@ impl MkbViewerApp {
     /// Get the appropriate (CentralWidgetState)[MkbViewerApp::CentralWidgetState] based on the
     /// number of loaded StageDefInstances.
     fn get_non_loading_state(&self) -> CentralWidgetState {
-        let loaded_stagedef_count = self.stagedef_viewers.len(); 
-        if loaded_stagedef_count > 0 { CentralWidgetState::StagedefLoaded }
-        else { CentralWidgetState::NoStagedefLoaded }
+        let loaded_stagedef_count = self.stagedef_viewers.len();
+        if loaded_stagedef_count > 0 {
+            CentralWidgetState::StagedefLoaded
+        } else {
+            CentralWidgetState::NoStagedefLoaded
+        }
     }
 }
 
@@ -169,7 +172,9 @@ pub enum CentralWidgetState {
 }
 
 impl Default for CentralWidgetState {
-    fn default() -> Self { CentralWidgetState::NoStagedefLoaded }
+    fn default() -> Self {
+        CentralWidgetState::NoStagedefLoaded
+    }
 }
 
 impl eframe::App for MkbViewerApp {
@@ -206,7 +211,7 @@ impl eframe::App for MkbViewerApp {
             });
 
         // Central panel
-        MkbViewerApp::get_central_widget_frame(self, ctx); 
+        MkbViewerApp::get_central_widget_frame(self, ctx);
 
         for viewer in self.stagedef_viewers.iter() {
             //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
