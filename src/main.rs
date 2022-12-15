@@ -11,7 +11,8 @@ mod parser;
 mod stagedef;
 
 use tracing::Level;
-const LOG_LEVEL: Level = Level::TRACE;
+/// Verbosity of console logs.
+const LOG_LEVEL: Level = Level::DEBUG;
 
 // Web
 #[cfg(not(target_arch = "wasm32"))]

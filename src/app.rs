@@ -16,7 +16,7 @@ pub struct MkbViewerApp {
     /// A file pending to load, which we will split off into a new window to handle once the
     /// promise has a result.
     pending_file_to_load: Option<Promise<Option<FileHandleWrapper>>>,
-    /// A collection of all the ['stagedef instances'](MkbViewerApp::StageDefInstance) that are
+    /// A collection of all the ['stagedef instances'](StageDefInstance) that are
     /// currently loaded.
     stagedef_viewers: Vec<StageDefInstance>,
     /// The state of the central widget, used to display a message indicating the status.
@@ -136,6 +136,10 @@ impl MkbViewerApp {
 
     /// Handle the central widget's panel, which will display something depending on whether or not
     /// a stagedef is loaded.
+    // TODO: On 'Loading' state, we need to display a button that allows users to cancel loading.
+    // This is due to a bug in file loading on the web where if a file fails to be read, the
+    // promise will never return.
+    // TODO: Add a 'Open stagedef' button on the 'NoStagedefLoaded' state.
     pub fn get_central_widget_frame(&mut self, ctx: &egui::Context) {
         let state = self.state;
         let panel = egui::CentralPanel::default();
@@ -152,8 +156,8 @@ impl MkbViewerApp {
         });
     }
 
-    /// Get the appropriate (CentralWidgetState)[MkbViewerApp::CentralWidgetState] based on the
-    /// number of loaded StageDefInstances.
+    /// Get the appropriate (CentralWidgetState)[CentralWidgetState] based on the
+    /// number of loaded (StageDefInstances)[StageDefInstance].
     fn get_non_loading_state(&self) -> CentralWidgetState {
         let loaded_stagedef_count = self.stagedef_viewers.len();
         if loaded_stagedef_count > 0 {
@@ -164,6 +168,7 @@ impl MkbViewerApp {
     }
 }
 
+/// The state of the central widget, used to display a message indicating the status.
 #[derive(Clone, Copy)]
 pub enum CentralWidgetState {
     NoStagedefLoaded,
@@ -346,13 +351,6 @@ impl FancyTreeFmt for f32 {
         tile
     }
 
-
-    // Handle 'quit' selection from menu
-    fn on_quit(&self) {
-        println!("Quitting...");
-        self.app.quit();
-    }
-
     // Handle 'about' selection from menu
     fn on_about(&self) {
         println!("{}, {}", app::screen_size().0, app::screen_size().1);
@@ -362,39 +360,6 @@ impl FancyTreeFmt for f32 {
             screen_center().1,
             "MKBViewer v0.1.0 - by The BombSquad",
         );
-    }
-
-    // Handle 'open' selection from menu
-    fn on_open(&mut self) {
-        let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseFile);
-        dialog.set_filter("*.{lz,lz.raw}");
-        dialog.show();
-
-        let filename = dialog.filename();
-        let ext = filename.extension().unwrap_or_default();
-
-        if ext == "raw" {
-            match StageDefInstance::new(filename) {
-                Ok(s) => {
-                    let stagedef_tile = &Application::create_stagedef_tile(&self.main_window, &s);
-                    self.tabs.add(stagedef_tile);
-                    self.main_window.resizable(stagedef_tile);
-                    self.main_window.redraw();
-                    self.stagedef_instances.push(s);
-                }
-                Err(e) => {
-                    dialog::message(screen_center().0, screen_center().1, &(e.to_string()));
-                }
-            }
-        } else if ext == "lz" {
-            dialog::message(
-                screen_center().0,
-                screen_center().1,
-                "Compressed stagedefs not yet supported",
-            );
-        } else {
-            dialog::message(screen_center().0, screen_center().1, "No file selected");
-        }
     }
 
 }*/
