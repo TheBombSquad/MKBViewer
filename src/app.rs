@@ -1,6 +1,6 @@
 //! Handles all the UI-related activities
-use crate::stagedef::StageDefInstance;
-use egui::Window;
+use crate::stagedef::{StageDef, StageDefInstance};
+use egui::{Window, Label, Frame, Button};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
@@ -8,7 +8,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileHandle;
 use std::io::Cursor;
 use std::vec::Vec;
-use tracing::{event, Level};
+use tracing::{event, instrument, trace, Level};
 
 /// Our root window.
 #[derive(Default)]
@@ -16,7 +16,11 @@ pub struct MkbViewerApp {
     /// A file pending to load, which we will split off into a new window to handle once the
     /// promise has a result.
     pending_file_to_load: Option<Promise<Option<FileHandleWrapper>>>,
+    /// A collection of all the ['stagedef instances'](MkbViewerApp::StageDefInstance) that are
+    /// currently loaded.
     stagedef_viewers: Vec<StageDefInstance>,
+    /// The state of the central widget, used to display a message indicating the status.
+    state: CentralWidgetState,
 }
 
 impl MkbViewerApp {
@@ -38,19 +42,55 @@ impl MkbViewerApp {
     ///
     /// This is run every frame.
     fn poll_pending_file(&mut self) {
-        let Some(promise) = &self.pending_file_to_load else { return; };
-        let Some(filehandle_opt) = promise.ready() else { return; };
+        let pending_file_to_load = self.pending_file_to_load.take();
+
+        // Checks if we even have a promise to wait on
+        let Some(promise) = pending_file_to_load else { 
+            trace!("No file open promise check"); 
+            return;
+        };
+
+        self.state = CentralWidgetState::Loading;
+
+        // If we do, checks if that promise has completed yet
+        let filehandle_opt = match promise.try_take() {
+            Ok(o) => {
+                trace!("Promise completed");
+                o
+            }
+            Err(o) => {
+                trace!("Promise has not completed yet");
+                self.pending_file_to_load = Some(o);
+                return;
+            }
+        };
+
+        // If it has completed, check to see if it returned anything
         let Some(filehandle) = filehandle_opt else {
-            event!(Level::INFO, "Pending file was not read");
+            event!(Level::INFO, "No file was selected");
+            self.state = self.get_non_loading_state(); 
             self.pending_file_to_load = None;
             return;
         };
 
+        // Construct the new StageDefInstance since we've loaded the file
         event!(
             Level::INFO,
-            "Loading pending file: {}",
+            "Loading pending file: {}...",
             filehandle.file_name
         );
+
+        let new_instance_test = StageDefInstance::new(filehandle).unwrap();
+
+        event!(
+            Level::INFO,
+            "Instance test: {:?}",
+            new_instance_test.stagedef.magic_number_2
+        );
+
+        self.stagedef_viewers.push(new_instance_test);
+
+        self.state = self.get_non_loading_state(); 
         self.pending_file_to_load = None;
     }
 
@@ -93,6 +133,43 @@ impl MkbViewerApp {
 
         promise
     }
+    
+    /// Handle the central widget's panel, which will display something depending on whether or not
+    /// a stagedef is loaded.
+    pub fn get_central_widget_frame(&mut self, ctx: &egui::Context) {
+        let state = self.state;
+        let panel = egui::CentralPanel::default();
+        panel.show(ctx, |ui| {
+            ui.centered_and_justified(|ui| {
+                match state {
+                    CentralWidgetState::NoStagedefLoaded => { 
+                        ui.label("No stagedef currently loaded - go to File->Open to add one")
+                    },
+                    CentralWidgetState::Loading => ui.label("Loading file..."),
+                    CentralWidgetState::StagedefLoaded => ui.label(""),
+                };
+            });
+        });
+    }
+
+    /// Get the appropriate (CentralWidgetState)[MkbViewerApp::CentralWidgetState] based on the
+    /// number of loaded StageDefInstances.
+    fn get_non_loading_state(&self) -> CentralWidgetState {
+        let loaded_stagedef_count = self.stagedef_viewers.len(); 
+        if loaded_stagedef_count > 0 { CentralWidgetState::StagedefLoaded }
+        else { CentralWidgetState::NoStagedefLoaded }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum CentralWidgetState {
+    NoStagedefLoaded,
+    Loading,
+    StagedefLoaded,
+}
+
+impl Default for CentralWidgetState {
+    fn default() -> Self { CentralWidgetState::NoStagedefLoaded }
 }
 
 impl eframe::App for MkbViewerApp {
@@ -129,11 +206,7 @@ impl eframe::App for MkbViewerApp {
             });
 
         // Central panel
-        CentralPanel::default().show(ctx, |ui| {
-            ui.centered_and_justified(|ui| {
-                ui.label("No stagedef currently loaded - go to File->Open to add one!");
-            });
-        });
+        MkbViewerApp::get_central_widget_frame(self, ctx); 
 
         for viewer in self.stagedef_viewers.iter() {
             //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
@@ -153,8 +226,12 @@ pub struct FileHandleWrapper {
 
 impl FileHandleWrapper {
     pub async fn new(fh: FileHandle, file_type: MkbFileType) -> Self {
+        trace!("Constructing new FileHandleWrapper...");
+        let buffer = fh.read().await;
+        trace!("Read buffer");
+
         Self {
-            buffer: fh.read().await,
+            buffer,
             // TODO: Verify that this works with non-UTF8 filenames
             file_name: fh.file_name(),
             file_type,

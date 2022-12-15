@@ -10,6 +10,9 @@ mod app;
 mod parser;
 mod stagedef;
 
+use tracing::Level;
+const LOG_LEVEL: Level = Level::TRACE;
+
 // Web
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
@@ -30,8 +33,11 @@ fn main() {
     // Make sure panics are logged using `console.error`.
     console_error_panic_hook::set_once();
 
-    // Redirect tracing to console.log and friends:
-    tracing_wasm::set_as_global_default();
+    let log_config = tracing_wasm::WASMLayerConfigBuilder::new()
+        .set_max_level(LOG_LEVEL)
+        .build();
+
+    tracing_wasm::set_as_global_default_with_config(log_config);
 
     let web_options = eframe::WebOptions::default();
     eframe::start_web(

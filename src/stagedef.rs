@@ -23,11 +23,10 @@ impl StageDefInstance {
     pub fn new(file: FileHandleWrapper) -> Result<Self, std::io::Error> {
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
-        let stagedef = StageDef::default();
 
         let mut reader = file.get_cursor();
-        //TODO: Implement endianness/game selection
 
+        //TODO: Implement endianness/game selection
         let stagedef = match endianness {
             Endianness::BigEndian => {
                 StageDef::read_stagedef::<BigEndian, Cursor<Vec<u8>>>(&mut reader, &game)
