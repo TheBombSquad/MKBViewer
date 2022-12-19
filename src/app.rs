@@ -1,6 +1,6 @@
 //! Handles all the UI-related activities
 use crate::stagedef::{StageDef, StageDefInstance};
-use egui::{Button, Frame, Label, Window};
+use egui::{Button, Frame, Label, Window, Vec2};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
@@ -80,15 +80,10 @@ impl MkbViewerApp {
             filehandle.file_name
         );
 
-        let new_instance_test = StageDefInstance::new(filehandle).unwrap();
+        // TODO: Handle error results instead of unwrapping
+        let new_instance = StageDefInstance::new(filehandle).unwrap();
 
-        event!(
-            Level::INFO,
-            "Instance test: {:?}",
-            new_instance_test.stagedef.magic_number_2
-        );
-
-        self.stagedef_viewers.push(new_instance_test);
+        self.stagedef_viewers.push(new_instance);
 
         self.state = self.get_non_loading_state();
         self.pending_file_to_load = None;
@@ -218,7 +213,37 @@ impl eframe::App for MkbViewerApp {
         // Central panel
         MkbViewerApp::get_central_widget_frame(self, ctx);
 
-        for viewer in self.stagedef_viewers.iter() {
+        // Get rid of inactive instances
+        self.stagedef_viewers.retain(|v| v.is_active);
+
+        // Iterate over stagedef instances and display their respective windows
+        for viewer in self.stagedef_viewers.iter_mut(){
+            let window = egui::Window::new(viewer.get_filename())
+                        .open(&mut viewer.is_active)
+                        .resizable(true)
+                        .min_height(800f32)
+                        .min_width(600f32);
+
+            window.show(ctx, |ui| {
+                egui::SidePanel::left("stagedef_instance_side_panel").max_width(100f32).show_inside(ui, |ui| {
+                    let layout = egui::Layout::top_down(egui::Align::Min)
+                                 .with_main_justify(true)
+                                 .with_cross_justify(true);
+                    ui.with_layout(layout, |ui| {
+                        //ui.label("Tree");
+                        egui::CollapsingHeader::new("Root").show(ui, |ui| {
+                            ui.label("Tree contents");
+                        });
+                        //egui::CollapsingHeader::new("Root").show(ui, |ui| { 
+                        ui.separator();
+                        //ui.label("Inspector");
+                    })
+                });
+                ui.allocate_space(Vec2{ x: 400f32, y: 300f32});
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    ui.label("3D viewer"); 
+                });
+            });
             //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
         }
     }

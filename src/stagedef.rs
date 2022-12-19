@@ -16,6 +16,7 @@ pub struct StageDefInstance {
     pub stagedef: StageDef,
     pub game: Game,
     pub endianness: Endianness,
+    pub is_active: bool,
     file: FileHandleWrapper,
 }
 
@@ -41,6 +42,7 @@ impl StageDefInstance {
             game,
             endianness,
             file,
+            is_active: true,
         })
     }
 
@@ -52,6 +54,10 @@ impl StageDefInstance {
     pub fn with_game(mut self, game: Game) -> StageDefInstance {
         self.game = game;
         self
+    }
+
+    pub fn get_filename(&self) -> String {
+        self.file.file_name.clone()
     }
 }
 
