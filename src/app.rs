@@ -220,7 +220,6 @@ impl eframe::App for MkbViewerApp {
         for viewer in self.stagedef_viewers.iter_mut(){
             let window = egui::Window::new(viewer.get_filename())
                         .open(&mut viewer.is_active)
-                        .resizable(true)
                         .min_height(800f32)
                         .min_width(600f32);
 
@@ -230,19 +229,17 @@ impl eframe::App for MkbViewerApp {
                                  .with_main_justify(true)
                                  .with_cross_justify(true);
                     ui.with_layout(layout, |ui| {
-                        //ui.label("Tree");
                         egui::CollapsingHeader::new("Root").show(ui, |ui| {
                             ui.label("Tree contents");
                         });
-                        //egui::CollapsingHeader::new("Root").show(ui, |ui| { 
                         ui.separator();
-                        //ui.label("Inspector");
                     })
                 });
-                ui.allocate_space(Vec2{ x: 400f32, y: 300f32});
-                egui::CentralPanel::default().show_inside(ui, |ui| {
-                    ui.label("3D viewer"); 
-                });
+
+                egui::Frame::none().show(ui, |ui| {
+                    ui.label("test 3d frame"); 
+                    ui.allocate_space(Vec2::splat(400f32));
+                }); 
             });
             //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
         }
