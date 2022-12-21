@@ -211,7 +211,7 @@ impl eframe::App for MkbViewerApp {
             });
 
         // Central panel
-        MkbViewerApp::get_central_widget_frame(self, ctx);
+        //MkbViewerApp::get_central_widget_frame(self, ctx);
 
         // Get rid of inactive instances
         self.stagedef_viewers.retain(|v| v.is_active);
@@ -224,24 +224,19 @@ impl eframe::App for MkbViewerApp {
                         .min_width(600f32);
 
             window.show(ctx, |ui| {
-                egui::SidePanel::left("stagedef_instance_side_panel").max_width(100f32).show_inside(ui, |ui| {
-                    let layout = egui::Layout::top_down(egui::Align::Min)
-                                 .with_main_justify(true)
-                                 .with_cross_justify(true);
-                    ui.with_layout(layout, |ui| {
+                egui::TopBottomPanel::top("stagedef_instance_menu_bar").show_inside(ui, |ui| {
+                    ui.label("Menu bar");
+                });
+
+                egui::SidePanel::left("stagedef_instance_side_panel").resizable(true).show_inside(ui, |ui| {
+                    egui::TopBottomPanel::top("stagedef_instance_side_panel_container").resizable(true).show_inside(ui, |ui| {
                         egui::CollapsingHeader::new("Root").show(ui, |ui| {
                             ui.label("Tree contents");
                         });
-                        ui.separator();
-                    })
+                        ui.label("Inspector");
+                    });
                 });
-
-                egui::Frame::none().show(ui, |ui| {
-                    ui.label("test 3d frame"); 
-                    ui.allocate_space(Vec2::splat(400f32));
-                }); 
             });
-            //event!(Level::INFO, "{:?}", viewer.stagedef_instance.stagedef.magic_number_1);
         }
     }
 }
