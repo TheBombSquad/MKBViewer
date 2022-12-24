@@ -1,12 +1,14 @@
 //! Handles all the UI-related activities
+use crate::renderer::{self, FrameInput};
 use crate::stagedef::{StageDef, StageDefInstance};
-use egui::{Button, Frame, Label, Window, Vec2};
+use egui::{Button, Frame, Label, Window, Vec2, vec2};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
 use rfd::AsyncFileDialog;
 use rfd::FileHandle;
 use std::io::Cursor;
+use std::sync::Arc;
 use std::vec::Vec;
 use tracing::{event, instrument, trace, Level};
 
@@ -198,6 +200,7 @@ impl eframe::App for MkbViewerApp {
                     event!(Level::INFO, "Quitting...");
                     frame.close();
                 }
+
             });
         });
 
@@ -211,7 +214,7 @@ impl eframe::App for MkbViewerApp {
             });
 
         // Central panel
-        //MkbViewerApp::get_central_widget_frame(self, ctx);
+        MkbViewerApp::get_central_widget_frame(self, ctx);
 
         // Get rid of inactive instances
         self.stagedef_viewers.retain(|v| v.is_active);
@@ -236,6 +239,23 @@ impl eframe::App for MkbViewerApp {
                         ui.label("Inspector");
                     });
                 });
+
+                egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                    let (rect, response) = ui.allocate_exact_size(vec2(800.0, 600.0), egui::Sense::drag());
+
+                    let callback = egui::PaintCallback {
+                        rect,
+                        callback: Arc::new(egui_glow::CallbackFn::new(
+                            move |info, painter| {
+                                renderer::with_three_d(painter.gl(), |renderer| {
+                                    renderer.render(
+                                        FrameInput::new(&renderer.context, &info, painter)
+                                    );
+                                }
+                            )}
+                        )),
+                    };
+                })
             });
         }
     }
