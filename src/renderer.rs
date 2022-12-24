@@ -1,8 +1,10 @@
 use eframe::egui_glow;
-use three_d::{Camera, Viewport, vec3, degrees, Gm, Color, Mesh, ColorMaterial, ClearState, Context};
-use three_d::renderer::geometry::CpuMesh;
 use std::cell::RefCell;
 use std::sync::Arc;
+use three_d::renderer::geometry::CpuMesh;
+use three_d::{
+    degrees, vec3, Camera, ClearState, Color, ColorMaterial, Context, Gm, Mesh, Viewport,
+};
 
 /*
 fn get_paint_callback(rect: rect) -> egui::PaintCallback {
@@ -14,9 +16,12 @@ fn get_paint_callback(rect: rect) -> egui::PaintCallback {
     }
 }*/
 
-/// Gives us a [Renderer] object to do render-y stuff with 
+/// Gives us a [Renderer] object to do render-y stuff with
 /// src: https://github.com/emilk/egui/blob/master/examples/custom_3d_three-d/src/main.rs
-pub fn with_three_d<R>(gl: &std::sync::Arc<glow::Context>, f: impl FnOnce(&mut Renderer) -> R) -> R {
+pub fn with_three_d<R>(
+    gl: &std::sync::Arc<glow::Context>,
+    f: impl FnOnce(&mut Renderer) -> R,
+) -> R {
     thread_local! {
         pub static THREE_D: RefCell<Option<Renderer>> = RefCell::new(None);
     }
@@ -102,13 +107,18 @@ pub struct Renderer {
     pub context: Context,
     camera: Camera,
     test_model: Gm<Mesh, ColorMaterial>,
-} 
+}
 
 impl Renderer {
     fn new(ctx: Arc<glow::Context>) -> Self {
         let three_d_ctx = three_d::Context::from_gl_context(ctx).unwrap();
         let camera = Camera::new_perspective(
-            Viewport { x: 0, y: 0, width: 0, height: 0 },
+            Viewport {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+            },
             vec3(0.0, 0.0, 1.0),
             vec3(0.0, 0.0, 0.0),
             vec3(0.0, 1.0, 0.0),
@@ -128,7 +138,7 @@ impl Renderer {
             Color::new(0, 255, 0, 255),
             Color::new(0, 0, 255, 255),
         ];
-        
+
         let trimesh = CpuMesh {
             positions: three_d::Positions::F32(pos),
             colors: Some(col),
@@ -142,14 +152,20 @@ impl Renderer {
             camera,
             test_model: model,
         }
-
     }
-    
+
     pub fn render(&mut self, frame_input: FrameInput<'_>) -> Option<glow::Framebuffer> {
         self.camera.set_viewport(frame_input.viewport);
 
-        frame_input.screen.clear_partially(frame_input.scissor_box, ClearState::depth(1.0));
-        frame_input.screen.render_partially(frame_input.scissor_box, &self.camera, [&self.test_model], &[]); 
+        frame_input
+            .screen
+            .clear_partially(frame_input.scissor_box, ClearState::depth(1.0));
+        frame_input.screen.render_partially(
+            frame_input.scissor_box,
+            &self.camera,
+            [&self.test_model],
+            &[],
+        );
         frame_input.screen.into_framebuffer()
     }
 }

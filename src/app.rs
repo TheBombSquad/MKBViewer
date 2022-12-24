@@ -1,7 +1,7 @@
 //! Handles all the UI-related activities
 use crate::renderer::{self, FrameInput};
 use crate::stagedef::{StageDef, StageDefInstance};
-use egui::{Button, Frame, Label, Window, Vec2, vec2};
+use egui::{vec2, Button, Frame, Label, Vec2, Window};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
 use poll_promise::Promise;
@@ -200,7 +200,6 @@ impl eframe::App for MkbViewerApp {
                     event!(Level::INFO, "Quitting...");
                     frame.close();
                 }
-
             });
         });
 
@@ -220,40 +219,41 @@ impl eframe::App for MkbViewerApp {
         self.stagedef_viewers.retain(|v| v.is_active);
 
         // Iterate over stagedef instances and display their respective windows
-        for viewer in self.stagedef_viewers.iter_mut(){
+        for viewer in self.stagedef_viewers.iter_mut() {
             let window = egui::Window::new(viewer.get_filename())
-                        .open(&mut viewer.is_active)
-                        .min_height(800f32)
-                        .min_width(600f32);
+                .open(&mut viewer.is_active)
+                .min_height(800f32)
+                .min_width(600f32);
 
             window.show(ctx, |ui| {
                 egui::TopBottomPanel::top("stagedef_instance_menu_bar").show_inside(ui, |ui| {
                     ui.label("Menu bar");
                 });
 
-                egui::SidePanel::left("stagedef_instance_side_panel").resizable(true).show_inside(ui, |ui| {
-                    egui::TopBottomPanel::top("stagedef_instance_side_panel_container").resizable(true).show_inside(ui, |ui| {
-                        egui::CollapsingHeader::new("Root").show(ui, |ui| {
-                            ui.label("Tree contents");
-                        });
-                        ui.label("Inspector");
+                egui::SidePanel::left("stagedef_instance_side_panel")
+                    .resizable(true)
+                    .show_inside(ui, |ui| {
+                        egui::TopBottomPanel::top("stagedef_instance_side_panel_container")
+                            .resizable(true)
+                            .show_inside(ui, |ui| {
+                                egui::CollapsingHeader::new("Root").show(ui, |ui| {
+                                    ui.label("Tree contents");
+                                });
+                                ui.label("Inspector");
+                            });
                     });
-                });
 
                 egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                    let (rect, response) = ui.allocate_exact_size(vec2(800.0, 600.0), egui::Sense::drag());
+                    let (rect, response) =
+                        ui.allocate_exact_size(vec2(800.0, 600.0), egui::Sense::drag());
 
                     let callback = egui::PaintCallback {
                         rect,
-                        callback: Arc::new(egui_glow::CallbackFn::new(
-                            move |info, painter| {
-                                renderer::with_three_d(painter.gl(), |renderer| {
-                                    renderer.render(
-                                        FrameInput::new(&renderer.context, &info, painter)
-                                    );
-                                }
-                            )}
-                        )),
+                        callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
+                            renderer::with_three_d(painter.gl(), |renderer| {
+                                renderer.render(FrameInput::new(&renderer.context, &info, painter));
+                            })
+                        })),
                     };
 
                     ui.painter().add(callback);

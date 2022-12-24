@@ -8,8 +8,8 @@ extern crate num_derive;
 
 mod app;
 mod parser;
-mod stagedef;
 mod renderer;
+mod stagedef;
 
 use tracing::Level;
 /// Verbosity of console logs.
