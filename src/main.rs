@@ -15,7 +15,7 @@ use tracing::Level;
 /// Verbosity of console logs.
 const LOG_LEVEL: Level = Level::DEBUG;
 
-// Web
+// Not web
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     // Log to stdout (if you run with `RUST_LOG=debug`).
@@ -29,10 +29,14 @@ fn main() {
     );
 }
 
-// Not web
+// Web
+#[cfg(target_arch = "wasm32")]
+use poll_promise::Promise;
+
 #[cfg(target_arch = "wasm32")]
 fn main() {
     // Make sure panics are logged using `console.error`.
+
     console_error_panic_hook::set_once();
 
     let log_config = tracing_wasm::WASMLayerConfigBuilder::new()
@@ -42,10 +46,14 @@ fn main() {
     tracing_wasm::set_as_global_default_with_config(log_config);
 
     let web_options = eframe::WebOptions::default();
-    eframe::start_web(
-        "mkbviewer_canvas",
-        web_options,
-        Box::new(|cc| Box::new(app::MkbViewerApp::new(cc))),
-    )
-    .expect("failed to start eframe");
+
+    let _start_web = Promise::spawn_async(async {
+        eframe::start_web(
+            "mkbviewer_canvas",
+            web_options,
+            Box::new(|cc| Box::new(app::MkbViewerApp::new(cc))),
+        )
+        .await
+        .expect("failed to start eframe");
+    });
 }
