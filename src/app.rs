@@ -255,6 +255,8 @@ impl eframe::App for MkbViewerApp {
                             )}
                         )),
                     };
+
+                    ui.painter().add(callback);
                 })
             });
         }

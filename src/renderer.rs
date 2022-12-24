@@ -109,7 +109,7 @@ impl Renderer {
         let three_d_ctx = three_d::Context::from_gl_context(ctx).unwrap();
         let camera = Camera::new_perspective(
             Viewport { x: 0, y: 0, width: 0, height: 0 },
-            vec3(0.0, 0.0, 0.0),
+            vec3(0.0, 0.0, 1.0),
             vec3(0.0, 0.0, 0.0),
             vec3(0.0, 1.0, 0.0),
             degrees(90.0),
