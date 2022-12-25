@@ -222,6 +222,7 @@ impl eframe::App for MkbViewerApp {
         // Iterate over stagedef instances and display their respective windows
         for viewer in self.stagedef_viewers.iter_mut() {
             let window = egui::Window::new(viewer.get_filename())
+                .constrain(true)
                 .open(&mut viewer.is_active);
 
             window.show(ctx, |ui| {
@@ -232,33 +233,46 @@ impl eframe::App for MkbViewerApp {
                 egui::SidePanel::left("stagedef_instance_side_panel")
                     .resizable(true)
                     .show_inside(ui, |ui| {
-                        egui::TopBottomPanel::top("stagedef_instance_side_panel_container")
-                            .resizable(true)
+                        egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
+                            .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
-                                egui::CollapsingHeader::new("Root").show(ui, |ui| {
-                                    ui.label("Tree contents");
+                                egui::ScrollArea::vertical().show(ui, |ui| {
+                                    ui.allocate_space(vec2(ui.available_width(), 0.0));
+                                    egui::CollapsingHeader::new("Root").show(ui, |ui| {
+                                        ui.label("Tree contents");
+                                    });
                                 });
-                                ui.label("Inspector");
+                                ui.allocate_space(ui.available_size());
                             });
+
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            let mut test_str = "a test string.";
+                            ui.label("Inspector");
+                            ui.text_edit_singleline(&mut test_str);
+                        });
                     });
 
                 egui::Frame::canvas(ui.style())
                     .outer_margin(Margin::symmetric(5.0, 5.0))
                     .show(ui, |ui| {
-                    let (rect, response) =
-                        ui.allocate_at_least(ui.max_rect().size(), egui::Sense::drag());
+                        let (rect, response) =
+                            ui.allocate_at_least(ui.max_rect().size(), egui::Sense::drag());
 
-                    let callback = egui::PaintCallback {
-                        rect,
-                        callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
-                            renderer::with_three_d(painter.gl(), |renderer| {
-                                renderer.render(FrameInput::new(&renderer.context, &info, painter));
-                            })
-                        })),
-                    };
+                        let callback = egui::PaintCallback {
+                            rect,
+                            callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
+                                renderer::with_three_d(painter.gl(), |renderer| {
+                                    renderer.render(FrameInput::new(
+                                        &renderer.context,
+                                        &info,
+                                        painter,
+                                    ));
+                                })
+                            })),
+                        };
 
-                    ui.painter().add(callback);
-                })
+                        ui.painter().add(callback);
+                    })
             });
         }
     }
