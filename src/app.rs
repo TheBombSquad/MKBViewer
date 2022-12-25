@@ -1,6 +1,7 @@
 //! Handles all the UI-related activities
 use crate::renderer::{self, FrameInput};
 use crate::stagedef::{StageDef, StageDefInstance};
+use egui::style::Margin;
 use egui::{vec2, Button, Frame, Label, Vec2, Window};
 use egui::{CentralPanel, Separator, TopBottomPanel};
 use futures::executor::block_on;
@@ -221,9 +222,7 @@ impl eframe::App for MkbViewerApp {
         // Iterate over stagedef instances and display their respective windows
         for viewer in self.stagedef_viewers.iter_mut() {
             let window = egui::Window::new(viewer.get_filename())
-                .open(&mut viewer.is_active)
-                .min_height(800f32)
-                .min_width(600f32);
+                .open(&mut viewer.is_active);
 
             window.show(ctx, |ui| {
                 egui::TopBottomPanel::top("stagedef_instance_menu_bar").show_inside(ui, |ui| {
@@ -243,9 +242,11 @@ impl eframe::App for MkbViewerApp {
                             });
                     });
 
-                egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                egui::Frame::canvas(ui.style())
+                    .outer_margin(Margin::symmetric(5.0, 5.0))
+                    .show(ui, |ui| {
                     let (rect, response) =
-                        ui.allocate_exact_size(vec2(800.0, 600.0), egui::Sense::drag());
+                        ui.allocate_at_least(ui.max_rect().size(), egui::Sense::drag());
 
                     let callback = egui::PaintCallback {
                         rect,

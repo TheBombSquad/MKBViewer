@@ -6,16 +6,6 @@ use three_d::{
     degrees, vec3, Camera, ClearState, Color, ColorMaterial, Context, Gm, Mesh, Viewport,
 };
 
-/*
-fn get_paint_callback(rect: rect) -> egui::PaintCallback {
-    egui::PaintCallback {
-        rect,
-        callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
-            with_three_d(painter.gl(), |three_d| three_d.frame())
-        })),
-    }
-}*/
-
 /// Gives us a [Renderer] object to do render-y stuff with
 /// src: https://github.com/emilk/egui/blob/master/examples/custom_3d_three-d/src/main.rs
 pub fn with_three_d<R>(
