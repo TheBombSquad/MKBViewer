@@ -18,6 +18,8 @@ futures = "0.3.25"
 glow = "0.11.2"
 three-d = "0.14.0"
 egui_glow = "0.20.1"
+egui_inspect = { git = "https://github.com/TheBombSquad/egui_inspect" }
+egui_inspect_derive = "0.1.3"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

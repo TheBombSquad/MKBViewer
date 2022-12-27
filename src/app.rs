@@ -2,8 +2,9 @@
 use crate::renderer::{self, FrameInput};
 use crate::stagedef::{StageDef, StageDefInstance};
 use egui::style::Margin;
-use egui::{vec2, Button, Frame, Label, Vec2, Window};
+use egui::{collapsing_header, vec2, Button, Frame, Label, Response, Vec2, Window};
 use egui::{CentralPanel, Separator, TopBottomPanel};
+use egui_inspect::EguiInspect;
 use futures::executor::block_on;
 use poll_promise::Promise;
 use rfd::AsyncFileDialog;
@@ -226,6 +227,7 @@ impl eframe::App for MkbViewerApp {
                 .open(&mut viewer.is_active);
 
             window.show(ctx, |ui| {
+                // TODO: Actual menu options
                 egui::TopBottomPanel::top("stagedef_instance_menu_bar").show_inside(ui, |ui| {
                     ui.label("Menu bar");
                 });
@@ -233,25 +235,26 @@ impl eframe::App for MkbViewerApp {
                 egui::SidePanel::left("stagedef_instance_side_panel")
                     .resizable(true)
                     .show_inside(ui, |ui| {
+                        // TODO: some function that takes a stagedef and displays the tree UI here
                         egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
                             .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
-                                    egui::CollapsingHeader::new("Root").show(ui, |ui| {
-                                        ui.label("Tree contents");
-                                    });
                                 });
                                 ui.allocate_space(ui.available_size());
                             });
 
+                        //TODO: some function that takes whatever is selected in the tree and
+                        // returns some properly formatted inspector thing
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            let mut test_str = "a test string.";
                             ui.label("Inspector");
-                            ui.text_edit_singleline(&mut test_str);
+                            viewer.stagedef.goals[0].inspect_mut("goal", ui);
                         });
                     });
-
+                //info!(ui
+                // TODO: Once we have collision triangle stuff imported, pass the stagedef into the
+                // renderer (or maybe just the triangles?? somehow idk) and render collision
                 egui::Frame::canvas(ui.style())
                     .outer_margin(Margin::symmetric(5.0, 5.0))
                     .show(ui, |ui| {
@@ -337,83 +340,3 @@ impl MkbFileType {
         }
     }
 }
-
-/*
-trait FancyTreeFmt {
-    fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>);
-}
-
-impl FancyTreeFmt for f32 {
-    fn as_tree_item(&self, tree: &mut Tree, label: Option<&str>) -> () {
-        let mut input_widget = FloatInput::new(300, 300, 50, 25, "f32");
-        input_widget.set_align(Align::Right);
-        let val_str = self.to_string();
-        input_widget.set_value(&val_str);
-
-        let mut input_widget_item = TreeItem::new(&tree, "");
-        input_widget_item.set_widget(&input_widget);
-        tree.add_item("Test/", &input_widget_item);
-    }
-}
-
-
-    // Stagedef file - so we can have multiple stagedefs open at once
-    pub fn create_stagedef_tile(window: &dyn WindowExt, stagedef: &StageDefInstance) -> Tile {
-        let name = stagedef.file_path.file_stem().unwrap().to_str().unwrap();
-
-        let mut tile = Tile::default()
-            .with_pos(0, 50)
-            .with_size(window.width(), window.height() - 25);
-
-        tile.set_label(name);
-
-        let mut tree = Tree::default()
-            .with_pos(0, 51)
-            .with_size(200, window.height() - 50);
-
-
-        let name = stagedef.file_path.file_stem().unwrap_or(OsStr::new("STAGEDEF")).to_str().unwrap_or("STAGEDEF");
-
-        // TEST TREE STUFF
-        let mut input_widget = IntInput::new(300, 300, 50, 25, "u32");
-        input_widget.set_align(Align::Right);
-
-        let mut input_widget_item = TreeItem::new(&tree, "");
-        input_widget_item.set_widget(&input_widget);
-        tree.add_item("Test/", &input_widget_item);
-
-        let mut dropdown_widget = InputChoice::new(0, 0, 100, 25, "Type");
-        dropdown_widget.set_align(Align::Right);
-        dropdown_widget.add("Blue");
-        dropdown_widget.add("Green");
-        dropdown_widget.add("Red");
-        dropdown_widget.set_value_index(0);
-
-        let mut dropdown_widget_item = TreeItem::new(&tree, "");
-        dropdown_widget_item.set_widget(&dropdown_widget);
-        tree.add_item("Test/", &dropdown_widget_item);
-
-        tree.end();
-
-        let viewer = Group::default()
-            .with_pos(200, 51)
-            .with_size(window.width() - 200, window.height() - 50);
-        viewer.end();
-
-        tile.end();
-
-        tile
-    }
-
-    // Handle 'about' selection from menu
-    fn on_about(&self) {
-        println!("{}, {}", app::screen_size().0, app::screen_size().1);
-        dialog::message_title("About MKBViewer");
-        dialog::message(
-            screen_center().0,
-            screen_center().1,
-            "MKBViewer v0.1.0 - by The BombSquad",
-        );
-    }
-
-}*/

@@ -8,6 +8,9 @@ use byteorder::{BigEndian, LittleEndian};
 
 use crate::app::FileHandleWrapper;
 
+use egui::Ui;
+use egui_inspect::EguiInspect;
+
 /// Contains a StageDef, as well as extra information about the file
 ///
 /// By default, this will be a big-endian SMB2 stagedef
@@ -64,18 +67,24 @@ impl StageDefInstance {
 // Common structures/enums
 
 /// 32-bit floating point 3 dimensional vector.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct Vector3 {
+    #[inspect(slider = false)]
     pub x: f32,
+    #[inspect(slider = false)]
     pub y: f32,
+    #[inspect(slider = false)]
     pub z: f32,
 }
 
 /// 16-bit 'short' 3 dimensional vector. Used to represent rotations in Monkey Ball stagedefs.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct ShortVector3 {
+    #[inspect(slider, min = 0.0, max = 65535.0)]
     pub x: u16,
+    #[inspect(slider, min = 0.0, max = 65535.0)]
     pub y: u16,
+    #[inspect(slider, min = 0.0, max = 65535.0)]
     pub z: u16,
 }
 
@@ -116,11 +125,28 @@ pub enum AnimationType {
     Seesaw,
 }
 
-#[derive(FromPrimitive, ToPrimitive, Debug, PartialEq)]
+#[derive(Default, FromPrimitive, ToPrimitive, Debug, PartialEq)]
 pub enum GoalType {
+    #[default]
     Blue = 0x0,
     Green = 0x1,
     Red = 0x2,
+}
+
+impl EguiInspect for GoalType {
+    fn inspect(&self, label: &'static str, ui: &mut egui::Ui) {
+        todo!();
+    }
+
+    fn inspect_mut(&mut self, label: &'static str, ui: &mut egui::Ui) {
+        egui::ComboBox::from_label(label)
+            .selected_text(format!("{:?}", self))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(self, GoalType::Blue, "Blue");
+                ui.selectable_value(self, GoalType::Green, "Green");
+                ui.selectable_value(self, GoalType::Red, "Red");
+            });
+    }
 }
 
 pub enum BananaType {
@@ -144,7 +170,7 @@ pub struct CollisionTriangle {
 
 pub struct Animation {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct Goal {
     pub position: Vector3,
     pub rotation: ShortVector3,
@@ -234,14 +260,17 @@ pub struct CollisionHeader {
     pub fallout_volumes: Vec<&FalloutVolume>,*/
 }
 
-#[derive(Default)]
+#[derive(Default, EguiInspect)]
 pub struct StageDef {
+    #[inspect(slider = false)]
     pub magic_number_1: f32,
+    #[inspect(slider = false)]
     pub magic_number_2: f32,
 
     pub start_position: Vector3,
     pub start_rotation: ShortVector3,
 
+    #[inspect(slider = false)]
     pub fallout_level: f32,
 
     //collision_headers: Vec<CollisionHeader>,

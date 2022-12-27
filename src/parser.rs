@@ -43,7 +43,7 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
         let position = self.read_vec3::<U>()?;
         let rotation = self.read_vec3_short::<U>()?;
 
-        let goal_type: GoalType = FromPrimitive::from_u8(self.read_u8()?).unwrap_or(GoalType::Blue);
+        let goal_type: GoalType = FromPrimitive::from_u8(self.read_u8()?).unwrap_or_default();
         self.read_u8()?;
 
         Ok(Goal {
