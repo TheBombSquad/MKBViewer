@@ -1,4 +1,5 @@
 //! Handles representation of the Monkey Ball stagedef format
+use std::fmt::Display;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -8,7 +9,7 @@ use byteorder::{BigEndian, LittleEndian};
 
 use crate::app::FileHandleWrapper;
 
-use egui::{Ui, Id, Response, SelectableLabel};
+use egui::{Id, Response, SelectableLabel, Ui};
 use egui_inspect::EguiInspect;
 
 /// Contains a StageDef, as well as extra information about the file
@@ -64,7 +65,6 @@ impl StageDefInstance {
     pub fn get_filename(&self) -> String {
         self.file.file_name.clone()
     }
-
 }
 
 // Common structures/enums
@@ -175,11 +175,11 @@ pub struct Animation {}
 
 #[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct Goal {
-    #[inspect(name="Position")]
+    #[inspect(name = "Position")]
     pub position: Vector3,
-    #[inspect(name="Rotation")]
+    #[inspect(name = "Rotation")]
     pub rotation: ShortVector3,
-    #[inspect(name="Goal Type")]
+    #[inspect(name = "Goal Type")]
     pub goal_type: GoalType,
 }
 
@@ -292,31 +292,56 @@ impl StageDef {
         todo!();
     }
 
+    fn display_tree_element<T: EguiInspect + Display>(
+        field: &T,
+        label: &str,
+        ctx: &mut (&mut Vec<Id>, &egui::Modifiers, &mut Ui),
+    ) {
+        let (selected, modifiers, ui) = ctx;
+        let shift_pushed = modifiers.shift;
+        let ctrl_pushed = modifiers.ctrl;
+        let next_id = ui.next_auto_id();
+        let is_selected = selected.contains(&next_id);
+
+        // TODO: Implement proper multi-selection when Shift is held
+        if ui
+            .selectable_label(is_selected, format!("{} {}", label, field))
+            .clicked()
+        {
+            // Selecting individual elements
+            if !ctrl_pushed {
+                selected.clear()
+            };
+
+            selected.push(next_id);
+        }
+    }
+
     pub fn display_tree_and_inspector(&self, selected: &mut Vec<Id>, ui: &mut Ui) -> () {
+        //Vec<Box<dyn EguiInspect>> {
         let modifiers = ui.ctx().input().modifiers;
         let shift_pushed = modifiers.shift;
         let ctrl_pushed = modifiers.ctrl;
 
-        // We want to keep track of everything that is selected 
+        // We want to keep track of everything that is selected
+        /*
         let mut add_element = |ui: &mut Ui| {
-            let next_id = ui.next_auto_id(); 
+            let next_id = ui.next_auto_id();
             let is_selected = selected.contains(&next_id);
             if ui.selectable_label(is_selected, "Label").clicked() {
                 // Selecting individual elements
-                if !ctrl_pushed { 
+                if !ctrl_pushed {
                     selected.clear()
                 };
 
                 selected.push(next_id);
             }
-        };
+        };*/
 
         let response = egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
-            add_element(ui);
-            add_element(ui);
-            add_element(ui);
-            add_element(ui);
-            add_element(ui);
+            let ctx = &mut (selected, &modifiers, ui);
+            StageDef::display_tree_element(&self.magic_number_1, "Magic Number #1: ", ctx);
+            StageDef::display_tree_element(&self.magic_number_2, "Magic Number #2: ", ctx);
         });
     }
 }

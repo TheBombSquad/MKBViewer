@@ -243,11 +243,16 @@ impl eframe::App for MkbViewerApp {
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
-                                    viewer.stagedef.display_tree_and_inspector(&mut viewer.selected, ui);
+                                    viewer
+                                        .stagedef
+                                        .display_tree_and_inspector(&mut viewer.selected, ui);
                                 });
 
                                 // Unselect if we click outside of the tree
-                                if ui.allocate_response(ui.available_size(), egui::Sense::click()).clicked() {
+                                if ui
+                                    .allocate_response(ui.available_size(), egui::Sense::click())
+                                    .clicked()
+                                {
                                     viewer.selected.clear();
                                 }
                             });
