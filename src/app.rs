@@ -232,27 +232,35 @@ impl eframe::App for MkbViewerApp {
                     ui.label("Menu bar");
                 });
 
+                // Side panel containing tree/inspector
                 egui::SidePanel::left("stagedef_instance_side_panel")
                     .resizable(true)
                     .show_inside(ui, |ui| {
+                        // Stagedef tree view
                         // TODO: some function that takes a stagedef and displays the tree UI here
                         egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
                             .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
+                                    viewer.stagedef.display_tree_and_inspector(&mut viewer.selected, ui);
                                 });
-                                ui.allocate_space(ui.available_size());
+
+                                // Unselect if we click outside of the tree
+                                if ui.allocate_response(ui.available_size(), egui::Sense::click()).clicked() {
+                                    viewer.selected.clear();
+                                }
                             });
 
+                        // Inspector for selected
                         //TODO: some function that takes whatever is selected in the tree and
                         // returns some properly formatted inspector thing
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.label("Inspector");
-                            viewer.stagedef.goals[0].inspect_mut("goal", ui);
                         });
                     });
-                //info!(ui
+
+                // 3D renderer
                 // TODO: Once we have collision triangle stuff imported, pass the stagedef into the
                 // renderer (or maybe just the triangles?? somehow idk) and render collision
                 egui::Frame::canvas(ui.style())

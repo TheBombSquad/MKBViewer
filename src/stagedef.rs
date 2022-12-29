@@ -8,7 +8,7 @@ use byteorder::{BigEndian, LittleEndian};
 
 use crate::app::FileHandleWrapper;
 
-use egui::Ui;
+use egui::{Ui, Id, Response, SelectableLabel};
 use egui_inspect::EguiInspect;
 
 /// Contains a StageDef, as well as extra information about the file
@@ -20,6 +20,7 @@ pub struct StageDefInstance {
     pub game: Game,
     pub endianness: Endianness,
     pub is_active: bool,
+    pub selected: Vec<Id>,
     file: FileHandleWrapper,
 }
 
@@ -45,6 +46,7 @@ impl StageDefInstance {
             game,
             endianness,
             file,
+            selected: Vec::<Id>::new(),
             is_active: true,
         })
     }
@@ -62,6 +64,7 @@ impl StageDefInstance {
     pub fn get_filename(&self) -> String {
         self.file.file_name.clone()
     }
+
 }
 
 // Common structures/enums
@@ -135,7 +138,7 @@ pub enum GoalType {
 
 impl EguiInspect for GoalType {
     fn inspect(&self, label: &'static str, ui: &mut egui::Ui) {
-        todo!();
+        unimplemented!();
     }
 
     fn inspect_mut(&mut self, label: &'static str, ui: &mut egui::Ui) {
@@ -172,8 +175,11 @@ pub struct Animation {}
 
 #[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct Goal {
+    #[inspect(name="Position")]
     pub position: Vector3,
+    #[inspect(name="Rotation")]
     pub rotation: ShortVector3,
+    #[inspect(name="Goal Type")]
     pub goal_type: GoalType,
 }
 
@@ -284,5 +290,33 @@ impl StageDef {
         endianness: &Endianness,
     ) -> Result<Self, std::io::Error> {
         todo!();
+    }
+
+    pub fn display_tree_and_inspector(&self, selected: &mut Vec<Id>, ui: &mut Ui) -> () {
+        let modifiers = ui.ctx().input().modifiers;
+        let shift_pushed = modifiers.shift;
+        let ctrl_pushed = modifiers.ctrl;
+
+        // We want to keep track of everything that is selected 
+        let mut add_element = |ui: &mut Ui| {
+            let next_id = ui.next_auto_id(); 
+            let is_selected = selected.contains(&next_id);
+            if ui.selectable_label(is_selected, "Label").clicked() {
+                // Selecting individual elements
+                if !ctrl_pushed { 
+                    selected.clear()
+                };
+
+                selected.push(next_id);
+            }
+        };
+
+        let response = egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
+            add_element(ui);
+            add_element(ui);
+            add_element(ui);
+            add_element(ui);
+            add_element(ui);
+        });
     }
 }
