@@ -222,9 +222,13 @@ impl eframe::App for MkbViewerApp {
 
         // Iterate over stagedef instances and display their respective windows
         for viewer in self.stagedef_viewers.iter_mut() {
+            // Handle whether or not the window is closed. We do this to avoid borrowing the entire
+            // struct just to mutate this, we'll check if this is modified later on
+            let mut is_open = viewer.is_active.clone();
+
             let window = egui::Window::new(viewer.get_filename())
                 .constrain(true)
-                .open(&mut viewer.is_active);
+                .open(&mut is_open);
 
             window.show(ctx, |ui| {
                 // TODO: Actual menu options
@@ -237,15 +241,12 @@ impl eframe::App for MkbViewerApp {
                     .resizable(true)
                     .show_inside(ui, |ui| {
                         // Stagedef tree view
-                        // TODO: some function that takes a stagedef and displays the tree UI here
                         egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
                             .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
-                                    viewer
-                                        .stagedef
-                                        .display_tree_and_inspector(&mut viewer.selected, ui);
+                                    viewer.ui_state.display_tree_and_inspector(&mut viewer.stagedef, ui);
                                 });
 
                                 // Unselect if we click outside of the tree
@@ -253,15 +254,18 @@ impl eframe::App for MkbViewerApp {
                                     .allocate_response(ui.available_size(), egui::Sense::click())
                                     .clicked()
                                 {
-                                    viewer.selected.clear();
+                                    viewer.ui_state.selected_tree_items.clear();
                                 }
                             });
 
                         // Inspector for selected
-                        //TODO: some function that takes whatever is selected in the tree and
-                        // returns some properly formatted inspector thing
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.label("Inspector");
+
+                            for field in viewer.ui_state.open_inspector_items.iter() {
+                                field.borrow_mut().inspect_mut("", ui);
+
+                            }
                         });
                     });
 
@@ -290,6 +294,8 @@ impl eframe::App for MkbViewerApp {
                         ui.painter().add(callback);
                     })
             });
+
+            viewer.is_active = is_open;
         }
     }
 }

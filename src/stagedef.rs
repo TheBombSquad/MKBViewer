@@ -1,8 +1,12 @@
 //! Handles representation of the Monkey Ball stagedef format
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::{fs, io::Cursor};
 
 use byteorder::{BigEndian, LittleEndian};
@@ -21,7 +25,7 @@ pub struct StageDefInstance {
     pub game: Game,
     pub endianness: Endianness,
     pub is_active: bool,
-    pub selected: Vec<Id>,
+    pub ui_state: StageDefInstanceUiState,
     file: FileHandleWrapper,
 }
 
@@ -47,23 +51,73 @@ impl StageDefInstance {
             game,
             endianness,
             file,
-            selected: Vec::<Id>::new(),
             is_active: true,
+            ..Default::default()
         })
-    }
-
-    pub fn with_endianness(mut self, endianness: Endianness) -> StageDefInstance {
-        self.endianness = endianness;
-        self
-    }
-
-    pub fn with_game(mut self, game: Game) -> StageDefInstance {
-        self.game = game;
-        self
     }
 
     pub fn get_filename(&self) -> String {
         self.file.file_name.clone()
+    }
+}
+
+#[derive(Default)]
+pub struct StageDefInstanceUiState {
+    pub selected_tree_items: HashSet<Id>,
+    pub open_inspector_items: HashSet<Rc<RefCell<dyn EguiInspect>>>,
+}
+
+impl StageDefInstanceUiState {
+    fn display_tree_element<T: EguiInspect + Display>(
+        field: &mut T,
+        label: &str,
+        ctx: &mut (
+            &mut HashSet<Id>,
+            &mut HashSet<Rc<RefCell<dyn EguiInspect>>>,
+            &egui::Modifiers,
+            &mut Ui,
+        ),
+    ) {
+        let (selected, inspectables, modifiers, ui) = ctx;
+        let shift_pushed = modifiers.shift;
+        let ctrl_pushed = modifiers.ctrl;
+        let modifier_pushed = shift_pushed || ctrl_pushed;
+        let next_id = ui.next_auto_id();
+        let is_selected = selected.contains(&next_id);
+
+        // TODO: Implement proper multi-selection when Shift is held
+        if ui
+            .selectable_label(is_selected, format!("{} {}", label, field))
+            .clicked()
+        {
+            // Allow selecting individual elements
+            if !modifier_pushed {
+                selected.clear()
+            }
+
+            if !is_selected {
+                selected.insert(next_id);
+                inspectables.insert(field);
+            } else {
+                selected.remove(&next_id);
+                inspectables.remove(&field);
+            }
+        }
+    }
+
+    pub fn display_tree_and_inspector(&mut self, stagedef: &mut StageDef, ui: &mut Ui) {
+        let modifiers = ui.ctx().input().modifiers;
+
+        egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
+            let ctx = &mut (
+                &mut self.selected_tree_items,
+                &mut self.open_inspector_items,
+                &modifiers,
+                ui,
+            );
+            StageDefInstanceUiState::display_tree_element(&mut stagedef.magic_number_1, "Magic Number #1: ", ctx);
+            StageDefInstanceUiState::display_tree_element(&mut stagedef.magic_number_2, "Magic Number #2: ", ctx);
+        });
     }
 }
 
@@ -290,58 +344,5 @@ impl StageDef {
         endianness: &Endianness,
     ) -> Result<Self, std::io::Error> {
         todo!();
-    }
-
-    fn display_tree_element<T: EguiInspect + Display>(
-        field: &T,
-        label: &str,
-        ctx: &mut (&mut Vec<Id>, &egui::Modifiers, &mut Ui),
-    ) {
-        let (selected, modifiers, ui) = ctx;
-        let shift_pushed = modifiers.shift;
-        let ctrl_pushed = modifiers.ctrl;
-        let next_id = ui.next_auto_id();
-        let is_selected = selected.contains(&next_id);
-
-        // TODO: Implement proper multi-selection when Shift is held
-        if ui
-            .selectable_label(is_selected, format!("{} {}", label, field))
-            .clicked()
-        {
-            // Selecting individual elements
-            if !ctrl_pushed {
-                selected.clear()
-            };
-
-            selected.push(next_id);
-        }
-    }
-
-    pub fn display_tree_and_inspector(&self, selected: &mut Vec<Id>, ui: &mut Ui) -> () {
-        //Vec<Box<dyn EguiInspect>> {
-        let modifiers = ui.ctx().input().modifiers;
-        let shift_pushed = modifiers.shift;
-        let ctrl_pushed = modifiers.ctrl;
-
-        // We want to keep track of everything that is selected
-        /*
-        let mut add_element = |ui: &mut Ui| {
-            let next_id = ui.next_auto_id();
-            let is_selected = selected.contains(&next_id);
-            if ui.selectable_label(is_selected, "Label").clicked() {
-                // Selecting individual elements
-                if !ctrl_pushed {
-                    selected.clear()
-                };
-
-                selected.push(next_id);
-            }
-        };*/
-
-        let response = egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
-            let ctx = &mut (selected, &modifiers, ui);
-            StageDef::display_tree_element(&self.magic_number_1, "Magic Number #1: ", ctx);
-            StageDef::display_tree_element(&self.magic_number_2, "Magic Number #2: ", ctx);
-        });
     }
 }
