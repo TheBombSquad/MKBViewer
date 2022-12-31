@@ -16,6 +16,8 @@ use crate::app::FileHandleWrapper;
 use egui::{Id, Response, SelectableLabel, Ui};
 use egui_inspect::EguiInspect;
 
+type Inspectable<'a> = (&'a mut (dyn EguiInspect), &'static str, &'static str);
+
 /// Contains a StageDef, as well as extra information about the file
 ///
 /// By default, this will be a big-endian SMB2 stagedef
@@ -64,16 +66,16 @@ impl StageDefInstance {
 #[derive(Default)]
 pub struct StageDefInstanceUiState {
     pub selected_tree_items: HashSet<Id>,
-    pub open_inspector_items: HashSet<Rc<RefCell<dyn EguiInspect>>>,
 }
 
 impl StageDefInstanceUiState {
-    fn display_tree_element<'a, T: EguiInspect + Display>(
+    fn display_tree_element<'a, T: EguiInspect + ToString>(
         field: &'a mut T,
-        label: &str,
+        inspector_label: &'static str,
+        inspector_description: &'static str,
         ctx: &mut (
             &mut HashSet<Id>,
-            &mut Vec<&'a mut dyn EguiInspect>,
+            &mut Vec<Inspectable<'a>>,
             &egui::Modifiers,
             &mut Ui,
         ),
@@ -87,12 +89,12 @@ impl StageDefInstanceUiState {
 
         // TODO: Implement proper multi-selection when Shift is held
         if ui
-            .selectable_label(is_selected, format!("{} {}", label, field))
+            .selectable_label(is_selected, format!("{}: {}", inspector_label, field.to_string())) 
             .clicked()
         {
             // Allow selecting individual elements
             if !modifier_pushed {
-                selected.clear()
+                selected.clear();
             }
 
             if !is_selected {
@@ -103,22 +105,32 @@ impl StageDefInstanceUiState {
         }
 
         if is_selected {
-            inspectables.push(field);
+            inspectables.push((field, inspector_label, inspector_description));
         }
     }
 
-    pub fn display_tree_and_inspector<'a> (&mut self, stagedef: &'a mut StageDef, inspectables: &mut Vec<&'a mut dyn EguiInspect>, ui: &mut Ui) {
+    pub fn display_tree_and_inspector<'a>(
+        &mut self,
+        stagedef: &'a mut StageDef,
+        inspectables: &mut Vec<Inspectable<'a>>,
+        ui: &mut Ui,
+    ) {
         let modifiers = ui.ctx().input().modifiers;
 
         egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
-            let ctx = &mut (
-                &mut self.selected_tree_items,
-                inspectables,
-                &modifiers,
-                ui,
+            let ctx = &mut (&mut self.selected_tree_items, inspectables, &modifiers, ui);
+            StageDefInstanceUiState::display_tree_element(
+                &mut stagedef.magic_number_1,
+                "Magic Number #1",
+                "A magic number woah",
+                ctx,
             );
-            StageDefInstanceUiState::display_tree_element(&mut stagedef.magic_number_1, "Magic Number #1: ", ctx);
-            StageDefInstanceUiState::display_tree_element(&mut stagedef.magic_number_2, "Magic Number #2: ", ctx);
+            StageDefInstanceUiState::display_tree_element(
+                &mut stagedef.magic_number_2,
+                "Magic Number #2",
+                "Another magic number woah",
+                ctx,
+            );
         });
     }
 }

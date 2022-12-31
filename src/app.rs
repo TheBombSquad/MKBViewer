@@ -240,14 +240,18 @@ impl eframe::App for MkbViewerApp {
                 egui::SidePanel::left("stagedef_instance_side_panel")
                     .resizable(true)
                     .show_inside(ui, |ui| {
-                        let mut open_inspector_items = Vec::new(); 
+                        let mut open_inspector_items = Vec::new();
                         // Stagedef tree view
                         egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
                             .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
-                                    viewer.ui_state.display_tree_and_inspector(&mut viewer.stagedef, &mut open_inspector_items, ui);
+                                    viewer.ui_state.display_tree_and_inspector(
+                                        &mut viewer.stagedef,
+                                        &mut open_inspector_items,
+                                        ui,
+                                    );
                                 });
 
                                 // Unselect if we click outside of the tree
@@ -263,8 +267,15 @@ impl eframe::App for MkbViewerApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.label("Inspector");
 
-                            for field in open_inspector_items {
-                                field.inspect_mut("", ui);
+                            let mut inspectable_count = open_inspector_items.len();
+
+                            for inspectable in open_inspector_items {
+                                inspectable_count = inspectable_count - 1;
+                                let (field, label, description) = inspectable;
+                                ui.label(label);
+                                field.inspect_mut(label, ui);
+                                ui.label(description);
+                                if inspectable_count > 0 { ui.separator(); }
                             }
                         });
                     });
