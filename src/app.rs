@@ -240,13 +240,14 @@ impl eframe::App for MkbViewerApp {
                 egui::SidePanel::left("stagedef_instance_side_panel")
                     .resizable(true)
                     .show_inside(ui, |ui| {
+                        let mut open_inspector_items = Vec::new(); 
                         // Stagedef tree view
                         egui::TopBottomPanel::top("stagedef_instance_side_panel_container_u")
                             .exact_height(ui.available_height() * 0.75)
                             .show_inside(ui, |ui| {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     ui.allocate_space(vec2(ui.available_width(), 0.0));
-                                    viewer.ui_state.display_tree_and_inspector(&mut viewer.stagedef, ui);
+                                    viewer.ui_state.display_tree_and_inspector(&mut viewer.stagedef, &mut open_inspector_items, ui);
                                 });
 
                                 // Unselect if we click outside of the tree
@@ -262,9 +263,8 @@ impl eframe::App for MkbViewerApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.label("Inspector");
 
-                            for field in viewer.ui_state.open_inspector_items.iter() {
-                                field.borrow_mut().inspect_mut("", ui);
-
+                            for field in open_inspector_items {
+                                field.inspect_mut("", ui);
                             }
                         });
                     });

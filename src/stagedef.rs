@@ -68,12 +68,12 @@ pub struct StageDefInstanceUiState {
 }
 
 impl StageDefInstanceUiState {
-    fn display_tree_element<T: EguiInspect + Display>(
-        field: &mut T,
+    fn display_tree_element<'a, T: EguiInspect + Display>(
+        field: &'a mut T,
         label: &str,
         ctx: &mut (
             &mut HashSet<Id>,
-            &mut HashSet<Rc<RefCell<dyn EguiInspect>>>,
+            &mut Vec<&'a mut dyn EguiInspect>,
             &egui::Modifiers,
             &mut Ui,
         ),
@@ -97,21 +97,23 @@ impl StageDefInstanceUiState {
 
             if !is_selected {
                 selected.insert(next_id);
-                inspectables.insert(field);
             } else {
                 selected.remove(&next_id);
-                inspectables.remove(&field);
             }
+        }
+
+        if is_selected {
+            inspectables.push(field);
         }
     }
 
-    pub fn display_tree_and_inspector(&mut self, stagedef: &mut StageDef, ui: &mut Ui) {
+    pub fn display_tree_and_inspector<'a> (&mut self, stagedef: &'a mut StageDef, inspectables: &mut Vec<&'a mut dyn EguiInspect>, ui: &mut Ui) {
         let modifiers = ui.ctx().input().modifiers;
 
         egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
             let ctx = &mut (
                 &mut self.selected_tree_items,
-                &mut self.open_inspector_items,
+                inspectables,
                 &modifiers,
                 ui,
             );
