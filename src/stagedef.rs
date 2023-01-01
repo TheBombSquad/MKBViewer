@@ -131,6 +131,8 @@ impl StageDefInstanceUiState {
                 "Another magic number woah",
                 ctx,
             );
+            StageDefInstanceUiState::display_tree_element(&mut stagedef.start_position, "Start Position", "Start Position", ctx);
+            StageDefInstanceUiState::display_tree_element(&mut stagedef.start_rotation, "Start Rotation", "Start Rotation", ctx);
         });
     }
 }
@@ -148,8 +150,24 @@ pub struct Vector3 {
     pub z: f32,
 }
 
+impl Display for Vector3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({:.1}, {:.1}, {:.1})", self.x, self.y, self.z)
+    }
+}
+
+impl From<ShortVector3> for Vector3 {
+    fn from(value: ShortVector3) -> Self {
+        Self {
+            x: (f32::from(value.x)/65535.0)*360.0,
+            y: (f32::from(value.y)/65535.0)*360.0,
+            z: (f32::from(value.z)/65535.0)*360.0,
+        }
+    }
+}
+
 /// 16-bit 'short' 3 dimensional vector. Used to represent rotations in Monkey Ball stagedefs.
-#[derive(Default, Debug, PartialEq, EguiInspect)]
+#[derive(Default, Debug, PartialEq, EguiInspect, Clone, Copy)]
 pub struct ShortVector3 {
     #[inspect(slider, min = 0.0, max = 65535.0)]
     pub x: u16,
@@ -157,6 +175,13 @@ pub struct ShortVector3 {
     pub y: u16,
     #[inspect(slider, min = 0.0, max = 65535.0)]
     pub z: u16,
+}
+
+impl Display for ShortVector3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let vec_degrees = Vector3::from(*self);
+        write!(f, "({:.1}º, {:.1}º, {:.1}º)", vec_degrees.x, vec_degrees.y, vec_degrees.z)
+    }
 }
 
 pub enum Game {
