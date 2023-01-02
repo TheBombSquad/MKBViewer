@@ -1,8 +1,13 @@
 //! Handles parsing of an uncompressed Monkey Ball stage binary.
-use crate::stagedef::{Game, Goal, GoalType, ShortVector3, StageDef, Vector3};
+use crate::stagedef::{
+    Game, GlobalStagedefObject, Goal, GoalType, ShortVector3, StageDef, Vector3,
+};
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 use num_traits::FromPrimitive;
-use std::io::{self, BufReader, BufWriter, Cursor, Error, Read, Seek, SeekFrom, Write};
+use std::{
+    io::{self, BufReader, BufWriter, Cursor, Error, Read, Seek, SeekFrom, Write},
+    sync::{Arc, Mutex},
+};
 
 const fn from_start(offset: u32) -> Option<SeekFrom> {
     Some(SeekFrom::Start(offset as u64))
@@ -177,10 +182,12 @@ impl StageDef {
         reader.seek(format.goal_list_offset.unwrap())?;
         let goal_list_co = reader.read_count_offset::<T>()?;
         reader.seek(from_start(goal_list_co.offset).unwrap())?;
-        for _i in 0..goal_list_co.count {
+        for i in 0..goal_list_co.count {
             let goal = reader.read_goal::<T>()?;
-            //print!("{:#}: {:#?}", _i, &goal);
-            stagedef.goals.push(goal);
+            stagedef.goals.push(GlobalStagedefObject {
+                object: Arc::new(Mutex::new(goal)),
+                index: i,
+            });
         }
 
         Ok(())

@@ -7,6 +7,7 @@ use std::hash::Hash;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::{fs, io::Cursor};
 
 use byteorder::{BigEndian, LittleEndian};
@@ -391,7 +392,7 @@ pub struct CollisionHeader {
     pub unk0xb0: u32,
     pub unk0xd0: u32,
     pub unk0xa6: u16,*/
-    pub goals: Vec<Goal>,
+    pub goals: Vec<GlobalStagedefObject<Goal>>,
     /*
     pub bumpers: Vec<&Bumper>,
     pub jamabars: Vec<&Jamabar>,
@@ -402,29 +403,52 @@ pub struct CollisionHeader {
     pub fallout_volumes: Vec<&FalloutVolume>,*/
 }
 
-#[derive(Default, EguiInspect)]
+#[derive(Default)]
 pub struct StageDef {
-    #[inspect(slider = false)]
     pub magic_number_1: f32,
-    #[inspect(slider = false)]
     pub magic_number_2: f32,
 
     pub start_position: Vector3,
     pub start_rotation: ShortVector3,
 
-    #[inspect(slider = false)]
     pub fallout_level: f32,
 
     //collision_headers: Vec<CollisionHeader>,
-    pub goals: Vec<Goal>,
+    pub goals: Vec<GlobalStagedefObject<Goal>>,
 }
 
-impl StageDef {
-    fn new(
-        reader: BufReader<File>,
-        game: &Game,
-        endianness: &Endianness,
-    ) -> Result<Self, std::io::Error> {
-        todo!();
+pub struct GlobalStagedefObject<T> {
+    pub object: Arc<Mutex<T>>,
+    pub index: u32,
+}
+
+impl<T: EguiInspect> EguiInspect for GlobalStagedefObject<T> {
+    fn inspect(&self, label: &str, ui: &mut egui::Ui) {
+        let guard = self.object.lock().unwrap();
+        guard.inspect(label, ui);
+    }
+    fn inspect_mut(&mut self, label: &str, ui: &mut egui::Ui) {
+        let mut guard = self.object.lock().unwrap();
+        guard.inspect_mut(label, ui);
+    }
+}
+
+impl<T: Display> Display for GlobalStagedefObject<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let guard = self.object.lock().unwrap();
+        guard.fmt(f)
+    }
+}
+
+impl<T: PartialEq> PartialEq for GlobalStagedefObject<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let guard = self.object.lock().unwrap();
+        let other_guard = other.object.lock().unwrap();
+        guard.eq(&other_guard)
+    }
+    fn ne(&self, other: &Self) -> bool {
+        let guard = self.object.lock().unwrap();
+        let other_guard = other.object.lock().unwrap();
+        guard.ne(&other_guard)
     }
 }
