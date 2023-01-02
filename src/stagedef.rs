@@ -16,7 +16,7 @@ use crate::app::FileHandleWrapper;
 use egui::{Id, Response, SelectableLabel, Ui};
 use egui_inspect::EguiInspect;
 
-type Inspectable<'a> = (&'a mut (dyn EguiInspect), &'static str, &'static str);
+type Inspectable<'a> = (&'a mut (dyn EguiInspect), String, &'static str);
 
 /// Contains a StageDef, as well as extra information about the file
 ///
@@ -86,13 +86,13 @@ impl StageDefInstanceUiState {
         let next_id = ui.next_auto_id();
         let is_selected = selected.contains(&next_id);
 
-        let label = match inspector_label_index {
+        let formatted_label = match inspector_label_index {
             Some(i) => format!("{} {}: {}", inspector_label, i, field.to_string()),
             None => format!("{}: {}", inspector_label, field.to_string()),
         };
 
         // TODO: Implement proper multi-selection when Shift is held
-        if ui.selectable_label(is_selected, label).clicked() {
+        if ui.selectable_label(is_selected, &formatted_label).clicked() {
             // Allow selecting individual elements
             if !modifier_pushed {
                 selected.clear();
@@ -106,7 +106,7 @@ impl StageDefInstanceUiState {
         }
 
         if is_selected {
-            inspectables.push((field, &inspector_label, inspector_description));
+            inspectables.push((field, formatted_label, inspector_description));
         }
     }
 
@@ -267,11 +267,11 @@ pub enum GoalType {
 }
 
 impl EguiInspect for GoalType {
-    fn inspect(&self, label: &'static str, ui: &mut egui::Ui) {
+    fn inspect(&self, label: &str, ui: &mut egui::Ui) {
         unimplemented!();
     }
 
-    fn inspect_mut(&mut self, label: &'static str, ui: &mut egui::Ui) {
+    fn inspect_mut(&mut self, label: &str, ui: &mut egui::Ui) {
         egui::ComboBox::from_label(label)
             .selected_text(format!("{:?}", self))
             .show_ui(ui, |ui| {

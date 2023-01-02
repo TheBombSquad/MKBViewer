@@ -265,15 +265,14 @@ impl eframe::App for MkbViewerApp {
 
                         // Inspector for selected
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.label("Inspector");
-
+                            ui.allocate_space(vec2(ui.available_width(), 0.0));
+                            ui.strong("Inspector");
                             let mut inspectable_count = open_inspector_items.len();
 
                             for inspectable in open_inspector_items {
                                 inspectable_count = inspectable_count - 1;
                                 let (field, label, description) = inspectable;
-                                ui.label(label);
-                                field.inspect_mut(label, ui);
+                                field.inspect_mut(&label, ui);
                                 ui.label(description);
                                 if inspectable_count > 0 {
                                     ui.separator();
