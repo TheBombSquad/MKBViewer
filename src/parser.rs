@@ -265,14 +265,14 @@ fn test_stagedef_endianness_test() {
 
 #[test]
 fn test_magic_numbers() {
-    let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-    let stagedef = StageDef::read_stagedef::<BigEndian, _>(file, &Game::SMB2).unwrap();
+    let mut file = test_smb2_stagedef_header::<BigEndian>().unwrap();
+    let stagedef = StageDef::read_stagedef::<BigEndian, _>(&mut file, &Game::SMB2).unwrap();
 
     assert_eq!(stagedef.magic_number_1, 0.0, "BigEndian");
     assert_eq!(stagedef.magic_number_2, 1000.0, "BigEndian");
 
-    let file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
-    let stagedef = StageDef::read_stagedef::<LittleEndian, _>(file, &Game::SMB2).unwrap();
+    let mut file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
+    let stagedef = StageDef::read_stagedef::<LittleEndian, _>(&mut file, &Game::SMB2).unwrap();
 
     assert_eq!(stagedef.magic_number_1, 0.0, "LittleEndian");
     assert_eq!(stagedef.magic_number_2, 1000.0, "LittleEndian");
@@ -288,15 +288,15 @@ fn test_start_fallout_pos_parse() {
     let expected_rot = ShortVector3 { x: 0, y: 0, z: 0 };
     let expected_flevel = -20.0;
 
-    let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-    let stagedef = StageDef::read_stagedef::<BigEndian, _>(file, &Game::SMB2).unwrap();
+    let mut file = test_smb2_stagedef_header::<BigEndian>().unwrap();
+    let stagedef = StageDef::read_stagedef::<BigEndian, _>(&mut file, &Game::SMB2).unwrap();
 
     assert_eq!(stagedef.start_position, expected_pos, "BigEndian");
     assert_eq!(stagedef.start_rotation, expected_rot, "BigEndian");
     assert_eq!(stagedef.fallout_level, expected_flevel, "BigEndian");
 
-    let file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
-    let stagedef = StageDef::read_stagedef::<LittleEndian, _>(file, &Game::SMB2).unwrap();
+    let mut file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
+    let stagedef = StageDef::read_stagedef::<LittleEndian, _>(&mut file, &Game::SMB2).unwrap();
 
     assert_eq!(stagedef.start_position, expected_pos, "LittleEndian");
     assert_eq!(stagedef.start_rotation, expected_rot, "LittleEndian");
@@ -315,8 +315,8 @@ fn test_goal_parse() {
         goal_type: GoalType::Blue,
     };
 
-    let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-    let stagedef = StageDef::read_stagedef::<BigEndian, _>(file, &Game::SMB2).unwrap();
+    let mut file = test_smb2_stagedef_header::<BigEndian>().unwrap();
+    let stagedef = StageDef::read_stagedef::<BigEndian, _>(&mut file, &Game::SMB2).unwrap();
 
     assert_eq!(stagedef.goals[0], expected_goal);
 }
