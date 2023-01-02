@@ -275,7 +275,9 @@ impl eframe::App for MkbViewerApp {
                                 ui.label(label);
                                 field.inspect_mut(label, ui);
                                 ui.label(description);
-                                if inspectable_count > 0 { ui.separator(); }
+                                if inspectable_count > 0 {
+                                    ui.separator();
+                                }
                             }
                         });
                     });

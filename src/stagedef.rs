@@ -92,10 +92,7 @@ impl StageDefInstanceUiState {
         };
 
         // TODO: Implement proper multi-selection when Shift is held
-        if ui
-            .selectable_label(is_selected, label) 
-            .clicked()
-        {
+        if ui.selectable_label(is_selected, label).clicked() {
             // Allow selecting individual elements
             if !modifier_pushed {
                 selected.clear();
@@ -137,14 +134,38 @@ impl StageDefInstanceUiState {
                 ui,
             );
 
-            self.display_tree_element(&mut stagedef.start_position, "Start Position", None, "Start Position", inspectables, ui);
-            self.display_tree_element(&mut stagedef.start_rotation, "Start Rotation", None, "Start Rotation", inspectables, ui);
-            
-            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(ui, |ui| {
-                for (i, goal) in stagedef.goals.iter_mut().enumerate() {
-                    self.display_tree_element(goal, "Goal", Some(i as u32), "Goal!", inspectables, ui);
-                }
-            });
+            self.display_tree_element(
+                &mut stagedef.start_position,
+                "Start Position",
+                None,
+                "Start Position",
+                inspectables,
+                ui,
+            );
+            self.display_tree_element(
+                &mut stagedef.start_rotation,
+                "Start Rotation",
+                None,
+                "Start Rotation",
+                inspectables,
+                ui,
+            );
+
+            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(
+                ui,
+                |ui| {
+                    for (i, goal) in stagedef.goals.iter_mut().enumerate() {
+                        self.display_tree_element(
+                            goal,
+                            "Goal",
+                            Some(i as u32),
+                            "Goal!",
+                            inspectables,
+                            ui,
+                        );
+                    }
+                },
+            );
         });
     }
 }
@@ -171,9 +192,9 @@ impl Display for Vector3 {
 impl From<ShortVector3> for Vector3 {
     fn from(value: ShortVector3) -> Self {
         Self {
-            x: (f32::from(value.x)/65535.0)*360.0,
-            y: (f32::from(value.y)/65535.0)*360.0,
-            z: (f32::from(value.z)/65535.0)*360.0,
+            x: (f32::from(value.x) / 65535.0) * 360.0,
+            y: (f32::from(value.y) / 65535.0) * 360.0,
+            z: (f32::from(value.z) / 65535.0) * 360.0,
         }
     }
 }
@@ -192,7 +213,11 @@ pub struct ShortVector3 {
 impl Display for ShortVector3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let vec_degrees = Vector3::from(*self);
-        write!(f, "({:.1}º, {:.1}º, {:.1}º)", vec_degrees.x, vec_degrees.y, vec_degrees.z)
+        write!(
+            f,
+            "({:.1}º, {:.1}º, {:.1}º)",
+            vec_degrees.x, vec_degrees.y, vec_degrees.z
+        )
     }
 }
 
