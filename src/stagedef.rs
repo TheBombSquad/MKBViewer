@@ -70,26 +70,30 @@ pub struct StageDefInstanceUiState {
 
 impl StageDefInstanceUiState {
     fn display_tree_element<'a, T: EguiInspect + ToString>(
+        &mut self,
         field: &'a mut T,
         inspector_label: &'static str,
+        inspector_label_index: Option<u32>,
         inspector_description: &'static str,
-        ctx: &mut (
-            &mut HashSet<Id>,
-            &mut Vec<Inspectable<'a>>,
-            &egui::Modifiers,
-            &mut Ui,
-        ),
+        inspectables: &mut Vec<Inspectable<'a>>,
+        ui: &mut Ui,
     ) {
-        let (selected, inspectables, modifiers, ui) = ctx;
+        let modifiers = ui.ctx().input().modifiers;
+        let selected = &mut self.selected_tree_items;
         let shift_pushed = modifiers.shift;
         let ctrl_pushed = modifiers.ctrl;
         let modifier_pushed = shift_pushed || ctrl_pushed;
         let next_id = ui.next_auto_id();
         let is_selected = selected.contains(&next_id);
 
+        let label = match inspector_label_index {
+            Some(i) => format!("{} {}: {}", inspector_label, i, field.to_string()),
+            None => format!("{}: {}", inspector_label, field.to_string()),
+        };
+
         // TODO: Implement proper multi-selection when Shift is held
         if ui
-            .selectable_label(is_selected, format!("{}: {}", inspector_label, field.to_string())) 
+            .selectable_label(is_selected, label) 
             .clicked()
         {
             // Allow selecting individual elements
@@ -105,7 +109,7 @@ impl StageDefInstanceUiState {
         }
 
         if is_selected {
-            inspectables.push((field, inspector_label, inspector_description));
+            inspectables.push((field, &inspector_label, inspector_description));
         }
     }
 
@@ -115,24 +119,32 @@ impl StageDefInstanceUiState {
         inspectables: &mut Vec<Inspectable<'a>>,
         ui: &mut Ui,
     ) {
-        let modifiers = ui.ctx().input().modifiers;
-
         egui::CollapsingHeader::new("Stagedef").show(ui, |ui| {
-            let ctx = &mut (&mut self.selected_tree_items, inspectables, &modifiers, ui);
-            StageDefInstanceUiState::display_tree_element(
+            self.display_tree_element(
                 &mut stagedef.magic_number_1,
-                "Magic Number #1",
+                "Magic Number",
+                Some(1),
                 "A magic number woah",
-                ctx,
+                inspectables,
+                ui,
             );
-            StageDefInstanceUiState::display_tree_element(
+            self.display_tree_element(
                 &mut stagedef.magic_number_2,
-                "Magic Number #2",
+                "Magic Number",
+                Some(2),
                 "Another magic number woah",
-                ctx,
+                inspectables,
+                ui,
             );
-            StageDefInstanceUiState::display_tree_element(&mut stagedef.start_position, "Start Position", "Start Position", ctx);
-            StageDefInstanceUiState::display_tree_element(&mut stagedef.start_rotation, "Start Rotation", "Start Rotation", ctx);
+
+            self.display_tree_element(&mut stagedef.start_position, "Start Position", None, "Start Position", inspectables, ui);
+            self.display_tree_element(&mut stagedef.start_rotation, "Start Rotation", None, "Start Rotation", inspectables, ui);
+            
+            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(ui, |ui| {
+                for (i, goal) in stagedef.goals.iter_mut().enumerate() {
+                    self.display_tree_element(goal, "Goal", Some(i as u32), "Goal!", inspectables, ui);
+                }
+            });
         });
     }
 }
@@ -274,6 +286,12 @@ pub struct Goal {
     pub rotation: ShortVector3,
     #[inspect(name = "Goal Type")]
     pub goal_type: GoalType,
+}
+
+impl Display for Goal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
 }
 
 pub struct Bumper {
