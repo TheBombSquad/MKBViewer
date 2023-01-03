@@ -13,16 +13,18 @@ use std::{fs, io::Cursor};
 use byteorder::{BigEndian, LittleEndian};
 
 use crate::app::FileHandleWrapper;
+use crate::parser::StageDefReader;
 
 use egui::{Id, Response, SelectableLabel, Ui};
 use egui_inspect::EguiInspect;
+
+use anyhow::Result;
 
 type Inspectable<'a> = (&'a mut (dyn EguiInspect), String, &'static str);
 
 /// Contains a StageDef, as well as extra information about the file
 ///
 /// By default, this will be a big-endian SMB2 stagedef
-#[derive(Default)]
 pub struct StageDefInstance {
     pub stagedef: StageDef,
     pub game: Game,
@@ -33,21 +35,19 @@ pub struct StageDefInstance {
 }
 
 impl StageDefInstance {
-    pub fn new(file: FileHandleWrapper) -> Result<Self, std::io::Error> {
+    pub fn new(file: FileHandleWrapper) -> Result<Self> {
         let game = Game::SMB2;
         let endianness = Endianness::BigEndian;
 
-        let mut reader = file.get_cursor();
+        let reader = file.get_cursor();
 
         //TODO: Implement endianness/game selection
+        let mut sd_reader = StageDefReader::new(reader, &game);
+
         let stagedef = match endianness {
-            Endianness::BigEndian => {
-                StageDef::read_stagedef::<BigEndian, Cursor<Vec<u8>>>(&mut reader, &game)
-            }
-            Endianness::LittleEndian => {
-                StageDef::read_stagedef::<LittleEndian, Cursor<Vec<u8>>>(&mut reader, &game)
-            }
-        }?;
+            Endianness::BigEndian => sd_reader.read_stagedef::<BigEndian>()?,
+            Endianness::LittleEndian => sd_reader.read_stagedef::<LittleEndian>()?,
+        };
 
         Ok(Self {
             stagedef,
@@ -55,7 +55,7 @@ impl StageDefInstance {
             endianness,
             file,
             is_active: true,
-            ..Default::default()
+            ui_state: StageDefInstanceUiState::default(),
         })
     }
 
@@ -222,6 +222,7 @@ impl Display for ShortVector3 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Game {
     SMB1,
     SMB2,
@@ -234,15 +235,11 @@ impl Default for Game {
     }
 }
 
+#[derive(Default)]
 pub enum Endianness {
+    #[default]
     BigEndian,
     LittleEndian,
-}
-
-impl Default for Endianness {
-    fn default() -> Self {
-        Endianness::BigEndian
-    }
 }
 
 pub enum AnimationState {
@@ -413,10 +410,11 @@ pub struct StageDef {
 
     pub fallout_level: f32,
 
-    //collision_headers: Vec<CollisionHeader>,
+    pub collision_headers: Vec<CollisionHeader>,
     pub goals: Vec<GlobalStagedefObject<Goal>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct GlobalStagedefObject<T> {
     pub object: Arc<Mutex<T>>,
     pub index: u32,
