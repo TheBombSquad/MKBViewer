@@ -420,6 +420,15 @@ pub struct GlobalStagedefObject<T> {
     pub index: u32,
 }
 
+impl<T> GlobalStagedefObject<T> {
+    pub fn new(object: T, index: u32) -> Self {
+        Self {
+            object: Arc::new(Mutex::new(object)),
+            index
+        }
+    }
+}
+
 impl<T: EguiInspect> EguiInspect for GlobalStagedefObject<T> {
     fn inspect(&self, label: &str, ui: &mut egui::Ui) {
         let guard = self.object.lock().unwrap();

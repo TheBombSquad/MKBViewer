@@ -79,7 +79,7 @@ trait SeekExtSmb {
 impl<T: Seek> SeekExtSmb for T {
     fn seek_fileoffset(&mut self, offset: FileOffset) -> io::Result<u64> {
         match offset {
-            FileOffset::Unused => self.stream_position(),
+            FileOffset::Unused => Err(io::Error::new(io::ErrorKind::Other, "Attempted to seek to an unused value")),
             FileOffset::OffsetOnly(o) => self.seek(o),
             FileOffset::CountOffset(_, o) => self.seek(o),
         }
@@ -191,7 +191,36 @@ impl<R: Read + Seek> StageDefReader<R> {
     pub fn read_stagedef<B: ByteOrder>(&mut self) -> Result<StageDef> {
         let mut stagedef = StageDef::default();
 
-        let header = self.read_header::<B>();
+        let file_header = self.read_header::<B>()?;
+    
+        // Read magic numbers
+        if let Ok(_) = self.reader.seek_fileoffset(file_header.magic_number_1_offset) {
+            stagedef.magic_number_1 = self.reader.read_f32::<B>()?;
+        }
+
+        if let Ok(_) = self.reader.seek_fileoffset(file_header.magic_number_2_offset) {
+            stagedef.magic_number_2 = self.reader.read_f32::<B>()?;
+        }
+
+        // TODO: Collision header
+        
+        // Start position and fallout level
+        // TODO: Support multiple start positions
+        if let Ok(_) = self.reader.seek_fileoffset(file_header.start_position_ptr_offset) {
+            stagedef.start_position = self.reader.read_vec3::<B>()?;
+        }
+
+        if let Ok(_) = self.reader.seek_fileoffset(file_header.fallout_position_ptr_offset) {
+            stagedef.fallout_level = self.reader.read_f32::<B>()?;
+        }
+
+        // Goal list 
+        if let FileOffset::CountOffset(c, o) = file_header.goal_list_offset {
+            self.reader.seek(o)?;
+            for i in 0..c {
+                stagedef.goals.push(GlobalStagedefObject::new(self.reader.read_goal::<B>()?, i));
+            }
+        }
 
         Ok(stagedef)
     }
@@ -480,7 +509,5 @@ fn test_goal_parse() {
     let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
     let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
-    //stagedef.goals[0];
-
-    // assert_eq!(goal, expected_goal);
+    assert_eq!(*stagedef.goals[0].object.lock().unwrap(), expected_goal);
 }
