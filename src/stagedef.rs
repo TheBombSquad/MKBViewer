@@ -363,9 +363,10 @@ pub struct FalloutVolume {
     pub unk0x1e: u16,
 }
 
+#[derive(Default)]
 pub struct CollisionHeader {
-    pub center_of_rotation_position: f32,
-    pub conveyor_vector: f32,
+    pub center_of_rotation_position: Vector3,
+    pub conveyor_vector: Vector3,
 
     /*pub collision_triangles: Vec<CollisionTriangle>,
     pub collision_grid_start_x: f32,
@@ -410,11 +411,11 @@ pub struct StageDef {
 
     pub fallout_level: f32,
 
-    pub collision_headers: Vec<CollisionHeader>,
+    pub collision_headers: Vec<GlobalStagedefObject<CollisionHeader>>,
     pub goals: Vec<GlobalStagedefObject<Goal>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GlobalStagedefObject<T> {
     pub object: Arc<Mutex<T>>,
     pub index: u32,
@@ -424,7 +425,16 @@ impl<T> GlobalStagedefObject<T> {
     pub fn new(object: T, index: u32) -> Self {
         Self {
             object: Arc::new(Mutex::new(object)),
-            index
+            index,
+        }
+    }
+}
+
+impl<T> Clone for GlobalStagedefObject<T> {
+    fn clone(&self) -> Self {
+        Self {
+            object: self.object.clone(),
+            index: self.index.clone(),
         }
     }
 }
