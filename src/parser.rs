@@ -6,8 +6,8 @@ use num_traits::FromPrimitive;
 use std::{
     fs::File,
     io::{self, BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write},
-    sync::{Arc, Mutex},
 };
+use tracing::{debug, event, warn, Level};
 
 /// Helper function that returns a new SeekFrom::Start from the given u32 offset.
 /// Mostly used for convenience for writing out default header formats.
@@ -403,13 +403,15 @@ impl<R: Read + Seek> StageDefReader<R> {
             for i in 0..c {
                 let current_offset = from_relative(o, COLLISION_HEADER_SIZE * i);
                 self.reader.seek(current_offset)?;
-                stagedef.collision_headers.push(GlobalStagedefObject::new(
-                    self.read_collision_header::<B>(&stagedef, current_offset)?,
-                    i,
-                ));
+                debug!(
+                    "Reading collision header at {:x}",
+                    self.reader.stream_position()?
+                );
+                stagedef
+                    .collision_headers
+                    .push(self.read_collision_header::<B>(&stagedef, current_offset)?);
             }
         }
-
         Ok(stagedef)
     }
 
@@ -574,28 +576,37 @@ impl<R: Read + Seek> StageDefReader<R> {
 
         // TODO: Fill this out...
         // Read goals
-        if let FileOffset::CountOffset(local_count, local_offset) = current_format.goal_list_offset
-        {
-            self.reader.seek(local_offset)?;
-
-            // Attempt to get goals from global list and re-adjust indices for our local list
-            if let Some(objs) = Self::get_global_indices(
-                &local_count,
-                &local_offset,
-                &self.file_header.goal_list_offset,
-                &stagedef.goals,
-            ) {
-                collision_header.goals = objs;
-            } 
-        
-            // Get goals from somewhere else
-            else {
-                for i in 0..local_count {
-                    collision_header
-                        .goals
-                        .push(GlobalStagedefObject::new(self.reader.read_goal::<B>()?, i));
+        if let FileOffset::OffsetOnly(o) = current_format.goal_list_offset {
+            self.reader.seek(o)?;
+            let goal_co = self.reader.read_count_offset::<B>()?;
+            if let FileOffset::CountOffset(local_count, local_offset) = goal_co {
+                self.reader.seek(local_offset)?;
+                debug!(
+                    "Reading collision header goals at {:x}",
+                    self.reader.stream_position()?
+                );
+                // Attempt to get goals from global list and re-adjust indices for our local list
+                if let Some(objs) = Self::get_global_indices(
+                    &local_count,
+                    &local_offset,
+                    &self.file_header.goal_list_offset,
+                    &stagedef.goals,
+                ) {
+                    collision_header.goals = objs;
+                    debug!("Found {:} goals", collision_header.goals.len());
+                }
+                // Get goals from somewhere else
+                else {
+                    warn!("Orphan goal list found");
+                    for i in 0..local_count {
+                        collision_header
+                            .goals
+                            .push(GlobalStagedefObject::new(self.reader.read_goal::<B>()?, i));
+                    }
                 }
             }
+        } else {
+            debug!("No goals foud");
         }
 
         Ok(collision_header)
@@ -617,7 +628,7 @@ impl<R: Read + Seek> StageDefReader<R> {
                 Ok(diff) => {
                     let global_size = global_count * T::size();
                     // The difference is within the bounds of the list
-                    if global_size <= diff {
+                    if diff < global_size {
                         let start_index = diff / T::size();
                         let mut local_reindex_value = 0;
                         let matching_global_objs: Vec<GlobalStagedefObject<T>> = global_obj_list
@@ -630,21 +641,27 @@ impl<R: Read + Seek> StageDefReader<R> {
                                 x
                             })
                             .collect();
+                        assert_eq!(true, matching_global_objs.len() <= global_obj_list.len());
                         Some(matching_global_objs)
                     }
                     // The difference isn't within the bounds of the list, so the object(s) is not in
                     // the global list
                     else {
+                        debug!("Failed global object retreival: local list of size {:} larger than global list of size {:}", diff, global_size);
                         None
                     }
                 }
                 // The difference is negative, so the object(s) is before the global list for some
                 // reason
-                Err(_) => None,
+                Err(_) => {
+                    debug!("Failed global object retreival: objects before list");
+                    None
+                }
             }
         }
         // There is no global list
         else {
+            debug!("Failed global object retreival: no global list");
             None
         }
     }
@@ -677,8 +694,8 @@ mod test {
         cur.write_uint::<T>(0x447A0000, 4)?;
 
         // collision header
-        cur.write_uint::<T>(0x00000000, 4)?;
-        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000001, 4)?;
+        cur.write_uint::<T>(0x00001BFC, 4)?;
 
         // start position offset
         cur.write_uint::<T>(0x0000089C, 4)?;
@@ -687,7 +704,7 @@ mod test {
         cur.write_uint::<T>(0x000008B0, 4)?;
 
         // goal list count/offset
-        cur.write_uint::<T>(0x00000003, 4)?;
+        cur.write_uint::<T>(0x00000001, 4)?;
         cur.write_uint::<T>(0x000008B4, 4)?;
 
         cur.seek(from_start(0x89C))?;
@@ -714,6 +731,56 @@ mod test {
         cur.write_uint::<T>(0xC2E60000, 4)?;
         cur.write_uint::<T>(0x00000000, 4)?;
         cur.write_uint::<T>(0x00000001, 4)?;
+
+        cur.seek(from_start(0x1BFC))?;
+
+        // collision header #1
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00002098, 4)?;
+        cur.write_uint::<T>(0x000119E4, 4)?;
+        cur.write_uint::<T>(0xC1A92F92, 4)?;
+        cur.write_uint::<T>(0xC30825EB, 4)?;
+        cur.write_uint::<T>(0x40292F34, 4)?;
+        cur.write_uint::<T>(0x413064F2, 4)?;
+        cur.write_uint::<T>(0x00000010, 4)?;
+        cur.write_uint::<T>(0x00000010, 4)?;
+        cur.write_uint::<T>(0x00000001, 4)?;
+        cur.write_uint::<T>(0x000008B4, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000007, 4)?;
+        cur.write_uint::<T>(0x000008C8, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000004, 4)?;
+        cur.write_uint::<T>(0x00000998, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000003, 4)?;
+        cur.write_uint::<T>(0x0000098C, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00001AFC, 4)?;
 
         Ok(cur)
     }
@@ -792,6 +859,32 @@ mod test {
         assert_eq!(*stagedef.goals[0].object.lock().unwrap(), expected_goal);
     }
 
+    #[test]
+    fn test_collision_header_goal_parse() {
+        tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
+        let expected_goal = Goal {
+            position: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: -115.0,
+            },
+            rotation: ShortVector3 { x: 0, y: 0, z: 0 },
+            goal_type: GoalType::Blue,
+        };
+
+        let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
+        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
+
+        assert_eq!(stagedef.collision_headers.len(), 1);
+        assert_eq!(stagedef.collision_headers[0].goals.len(), 1);
+
+        let test_goal = stagedef.collision_headers[0].goals[0]
+            .object
+            .lock()
+            .unwrap();
+        assert_eq!(*test_goal, expected_goal);
+    }
     #[test]
     fn element_size_test() {
         assert_eq!(true, true);

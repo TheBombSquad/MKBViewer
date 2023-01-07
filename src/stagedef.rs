@@ -167,6 +167,25 @@ impl StageDefInstanceUiState {
                     }
                 },
             );
+
+            egui::CollapsingHeader::new(format!(
+                "Collision Headers ({})",
+                stagedef.collision_headers.len()
+            ))
+            .show(ui, |ui| {
+                for (i, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
+                    for (i, goal) in col_header.goals.iter_mut().enumerate() {
+                        self.display_tree_element(
+                            goal,
+                            "Goal",
+                            Some(i as u32),
+                            "Goal!",
+                            inspectables,
+                            ui,
+                        );
+                    }
+                }
+            });
         });
     }
 }
@@ -363,7 +382,7 @@ pub struct FalloutVolume {
     pub unk0x1e: u16,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct CollisionHeader {
     pub center_of_rotation_position: Vector3,
     pub conveyor_vector: Vector3,
@@ -411,7 +430,7 @@ pub struct StageDef {
 
     pub fallout_level: f32,
 
-    pub collision_headers: Vec<GlobalStagedefObject<CollisionHeader>>,
+    pub collision_headers: Vec<CollisionHeader>,
     pub goals: Vec<GlobalStagedefObject<Goal>>,
 }
 

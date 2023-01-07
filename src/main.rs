@@ -19,7 +19,9 @@ const LOG_LEVEL: Level = Level::DEBUG;
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     // Log to stdout (if you run with `RUST_LOG=debug`).
-    tracing_subscriber::fmt::init();
+    //let log_config = tracing_subscriber::fmt::format().
+    //
+    tracing_subscriber::fmt().with_max_level(LOG_LEVEL).init();
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
