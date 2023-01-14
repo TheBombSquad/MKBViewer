@@ -22,7 +22,7 @@ use anyhow::Result;
 
 type Inspectable<'a> = (&'a mut (dyn EguiInspect), String, &'static str);
 
-/// Contains a StageDef, as well as extra information about the file
+/// Contains a [``StageDef``], as well as extra information about the file
 ///
 /// By default, this will be a big-endian SMB2 stagedef
 pub struct StageDefInstance {
@@ -42,7 +42,7 @@ impl StageDefInstance {
         let reader = file.get_cursor();
 
         //TODO: Implement endianness/game selection
-        let mut sd_reader = StageDefReader::new(reader, &game);
+        let mut sd_reader = StageDefReader::new(reader, game);
 
         let stagedef = match endianness {
             Endianness::BigEndian => sd_reader.read_stagedef::<BigEndian>()?,
@@ -74,7 +74,7 @@ impl StageDefInstanceUiState {
         &mut self,
         field: &'a mut T,
         inspector_label: &'static str,
-        inspector_label_index: Option<u32>,
+        inspector_label_index: Option<usize>,
         inspector_description: &'static str,
         inspectables: &mut Vec<Inspectable<'a>>,
         ui: &mut Ui,
@@ -88,8 +88,8 @@ impl StageDefInstanceUiState {
         let is_selected = selected.contains(&next_id);
 
         let formatted_label = match inspector_label_index {
-            Some(i) => format!("{} {}: {}", inspector_label, i, field.to_string()),
-            None => format!("{}: {}", inspector_label, field.to_string()),
+            Some(i) => format!("{inspector_label} {i}: {}", field.to_string()),
+            None => format!("{inspector_label}: {}", field.to_string()),
         };
 
         // TODO: Implement proper multi-selection when Shift is held
@@ -99,10 +99,10 @@ impl StageDefInstanceUiState {
                 selected.clear();
             }
 
-            if !is_selected {
-                selected.insert(next_id);
-            } else {
+            if is_selected {
                 selected.remove(&next_id);
+            } else {
+                selected.insert(next_id);
             }
         }
 
@@ -156,14 +156,7 @@ impl StageDefInstanceUiState {
                 ui,
                 |ui| {
                     for (i, goal) in stagedef.goals.iter_mut().enumerate() {
-                        self.display_tree_element(
-                            goal,
-                            "Goal",
-                            Some(i as u32),
-                            "Goal!",
-                            inspectables,
-                            ui,
-                        );
+                        self.display_tree_element(goal, "Goal", Some(i), "Goal!", inspectables, ui);
                     }
                 },
             );
@@ -173,12 +166,14 @@ impl StageDefInstanceUiState {
                 stagedef.collision_headers.len()
             ))
             .show(ui, |ui| {
-                for (i, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
-                    for (i, goal) in col_header.goals.iter_mut().enumerate() {
+                for (col_header_idx, col_header) in
+                    stagedef.collision_headers.iter_mut().enumerate()
+                {
+                    for (goal_idx, goal) in col_header.goals.iter_mut().enumerate() {
                         self.display_tree_element(
                             goal,
                             "Goal",
-                            Some(i as u32),
+                            Some(goal_idx),
                             "Goal!",
                             inspectables,
                             ui,
@@ -290,7 +285,7 @@ impl EguiInspect for GoalType {
 
     fn inspect_mut(&mut self, label: &str, ui: &mut egui::Ui) {
         egui::ComboBox::from_label(label)
-            .selected_text(format!("{:?}", self))
+            .selected_text(format!("{self:?}"))
             .show_ui(ui, |ui| {
                 ui.selectable_value(self, GoalType::Blue, "Blue");
                 ui.selectable_value(self, GoalType::Green, "Green");
@@ -453,7 +448,7 @@ impl<T> Clone for GlobalStagedefObject<T> {
     fn clone(&self) -> Self {
         Self {
             object: self.object.clone(),
-            index: self.index.clone(),
+            index: self.index,
         }
     }
 }
@@ -481,10 +476,5 @@ impl<T: PartialEq> PartialEq for GlobalStagedefObject<T> {
         let guard = self.object.lock().unwrap();
         let other_guard = other.object.lock().unwrap();
         guard.eq(&other_guard)
-    }
-    fn ne(&self, other: &Self) -> bool {
-        let guard = self.object.lock().unwrap();
-        let other_guard = other.object.lock().unwrap();
-        guard.ne(&other_guard)
     }
 }

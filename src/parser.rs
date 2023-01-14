@@ -9,15 +9,17 @@ use std::{
 };
 use tracing::{debug, event, warn, Level};
 
-/// Helper function that returns a new ``SeekFrom::Start`` from the given u32 offset.
+/// Helper function that returns a new [``SeekFrom::Start``] from the given [``u32``] offset.
+///
 /// Mostly used for convenience for writing out default header formats.
 const fn from_start(offset: u32) -> SeekFrom {
     SeekFrom::Start(offset as u64)
 }
 
-/// Helper function that takes a ``SeekFrom::Start`` and applies the given u32 offset to it.
+/// Helper function that takes a [``SeekFrom::Start``] and applies the given [``u32``] offset to it.
+///
 /// Mostly used for convenience for header formats like collision headers.
-/// Does not work on other variants of ``SeekFrom``.
+/// Does not work on other variants of [``SeekFrom``].
 const fn from_relative(start: SeekFrom, offset: u32) -> SeekFrom {
     if let SeekFrom::Start(o) = start {
         SeekFrom::Start(o + offset as u64)
@@ -26,9 +28,10 @@ const fn from_relative(start: SeekFrom, offset: u32) -> SeekFrom {
     }
 }
 
-/// Helper function that takes two ``SeekFrom::Start`` objects, and subtracts their offsets.
-/// Does not work on other variants of ``SeekFrom``.
-/// Returns Err if the resulting value would be negative.
+/// Helper function that takes two [``SeekFrom::Start``] objects, and subtracts their offsets.
+///
+/// Does not work on other variants of [``SeekFrom``].
+/// Returns [``Err``] if the resulting value would be negative.
 fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
     if let SeekFrom::Start(x_offset) = x {
         if let SeekFrom::Start(y_offset) = y {
@@ -47,6 +50,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
     }
 }
 
+/// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
 trait ReadBytesExtSmb {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
@@ -100,6 +104,7 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
     }
 }
 
+/// Extends [``std::io::Seek``] with a method for attempting to seek to a [``FileOffset``].
 trait SeekExtSmb {
     fn try_seek(&mut self, offset: FileOffset) -> io::Result<u64>;
 }
@@ -145,6 +150,7 @@ const LEVEL_MODEL_SIZE_SMB1: u32 = 0x4;
 const ANIMATION_HEADER_SIZE: u32 = 0x40;
 const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
 
+/// Provides a method for returning the file size of an object in a [``StageDef``].
 trait StagedefSized {
     fn size() -> u32;
 }
@@ -161,18 +167,23 @@ impl StagedefSized for Goal {
     }
 }
 
+/// Defines possible file offset types within a [``StageDef``].
 #[derive(Default, Clone, Copy)]
 enum FileOffset {
+    /// The offset, or the structure it refers to, does not exist in this format. Nothing will be read.
     #[default]
     Unused,
+    /// The offset points to a single structure.
     OffsetOnly(SeekFrom),
+    /// The offset points to multiple structures in a contiguous list.
     CountOffset(u32, SeekFrom),
 }
 
-/// A struct that defines the file header format for a Monkey Ball stagedef file. The fields define
-/// the location from the start of the file in which the given structure can be found. These fields
-/// are optional, for situations where certain structures are not in a particular game (for
-/// example, Super Monkey Ball 1 does not have wormholes).
+/// Defines the file header format for a Monkey Ball stagedef file.
+///
+/// The fields define the location from the start of the file in which the given structure can be
+/// found. These fields are optional, for situations where certain structures are not in a
+/// particular game (for example, Super Monkey Ball 1 does not have wormholes).
 #[derive(Default)]
 struct StageDefFileHeaderFormat {
     magic_number_1_offset: FileOffset,
@@ -230,8 +241,9 @@ const SMB2_FILE_HEADER_FORMAT: StageDefFileHeaderFormat = StageDefFileHeaderForm
 
 // TODO: SMB1 file header format
 
-/// A struct that defines the collision header format for Monkey Ball stagedef files.
-/// Importantly, this struct stores the offsets as relative offsets from the start of the collision
+/// Defines the collision header format for Monkey Ball stagedef files.
+///
+/// This struct stores the offsets as relative offsets from the start of the collision
 /// header. We have to construct this after we know where the header begins in the file.
 struct StageDefCollisionHeaderFormat {
     center_of_rotation_offset: FileOffset,
@@ -324,8 +336,8 @@ impl StageDefCollisionHeaderFormat {
     }
 }
 
+/// Handles reading a stagedef with a given reader, game type, and format.
 // TODO: SMB1 collision header format
-
 pub struct StageDefReader<R: Read + Seek> {
     reader: R,
     game: Game,
@@ -333,14 +345,15 @@ pub struct StageDefReader<R: Read + Seek> {
 }
 
 impl<R: Read + Seek> StageDefReader<R> {
-    pub fn new(reader: R, game: &Game) -> Self {
+    pub fn new(reader: R, game: Game) -> Self {
         Self {
             reader,
-            game: *game,
+            game,
             file_header: StageDefFileHeaderFormat::default(),
         }
     }
 
+    // Read in a new StageDef from our reader.
     pub fn read_stagedef<B: ByteOrder>(&mut self) -> Result<StageDef> {
         let mut stagedef = StageDef::default();
 
@@ -412,6 +425,8 @@ impl<R: Read + Seek> StageDefReader<R> {
         Ok(stagedef)
     }
 
+    // Determine the default format from our reader's Game attribute, then use the default format
+    // to parse the stagedef's offsets.
     fn read_file_header_offsets<B: ByteOrder>(&mut self) -> Result<StageDefFileHeaderFormat> {
         let default_format = match self.game {
             //TODO: Implement SMB1 support
@@ -613,9 +628,9 @@ impl<R: Read + Seek> StageDefReader<R> {
         Ok(current_format)
     }
 
-    /// This function will not advance the reader by the entire max size of a collision header
-    /// (0x49C).
     // TODO: SMB1 format
+    // Reads a collision header from the specified offset. Does not advance the reader by the max
+    // size of a collision header, 0x49C.
     fn read_collision_header<B: ByteOrder>(
         &mut self,
         stagedef: &StageDef,
@@ -625,13 +640,21 @@ impl<R: Read + Seek> StageDefReader<R> {
         let mut collision_header = CollisionHeader::default();
 
         // Read center of rotation position
-        if self.reader.try_seek(current_format.center_of_rotation_offset).is_ok() {
+        if self
+            .reader
+            .try_seek(current_format.center_of_rotation_offset)
+            .is_ok()
+        {
             collision_header.center_of_rotation_position = self.reader.read_vec3::<B>()?;
         }
 
         // TODO: Fill out the rest of the collision header structs
         // Read goals
-        if self.reader.try_seek(current_format.goal_list_offset).is_ok() {
+        if self
+            .reader
+            .try_seek(current_format.goal_list_offset)
+            .is_ok()
+        {
             let goal_co = self.reader.read_count_offset::<B>()?;
             if let FileOffset::CountOffset(local_count, local_offset) = goal_co {
                 self.reader.seek(local_offset)?;
@@ -661,7 +684,7 @@ impl<R: Read + Seek> StageDefReader<R> {
 
         Ok(collision_header)
     }
-    
+
     fn get_global_indices<T: StagedefSized>(
         local_count: u32,
         local_offset: &SeekFrom,
@@ -694,20 +717,20 @@ impl<R: Read + Seek> StageDefReader<R> {
                 // The difference isn't within the bounds of the list, so the object(s) is not in
                 // the global list
                 else {
-                    debug!("Failed global object retreival: local list of size {:} larger than global list of size {:}", diff, global_size);
+                    debug!("Failed global object retrieval: local list of size {:} larger than global list of size {:}", diff, global_size);
                     None
                 }
             }
             // The difference is negative, so the object(s) is before the global list for some
             // reason
             else {
-                debug!("Failed global object retreival: objects before list");
+                debug!("Failed global object retrieval: objects before list");
                 None
             }
         }
         // There is no global list
         else {
-            debug!("Failed global object retreival: no global list");
+            debug!("Failed global object retrieval: no global list");
             None
         }
     }
@@ -715,6 +738,7 @@ impl<R: Read + Seek> StageDefReader<R> {
 
 mod test {
     #![allow(clippy::unreadable_literal)]
+    #![allow(clippy::float_cmp)]
     use super::*;
 
     #[cfg(test)]
@@ -846,14 +870,14 @@ mod test {
     #[test]
     fn test_magic_numbers() {
         let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
         assert_eq!(stagedef.magic_number_1, 0.0, "BigEndian");
         assert_eq!(stagedef.magic_number_2, 1000.0, "BigEndian");
 
         let file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<LittleEndian>().unwrap();
 
         assert_eq!(stagedef.magic_number_1, 0.0, "LittleEndian");
@@ -871,7 +895,7 @@ mod test {
         let expected_flevel = -20.0;
 
         let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
         assert_eq!(stagedef.start_position, expected_pos, "BigEndian");
@@ -879,7 +903,7 @@ mod test {
         assert_eq!(stagedef.fallout_level, expected_flevel, "BigEndian");
 
         let file = test_smb2_stagedef_header::<LittleEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<LittleEndian>().unwrap();
 
         assert_eq!(stagedef.start_position, expected_pos, "LittleEndian");
@@ -900,7 +924,7 @@ mod test {
         };
 
         let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
         assert_eq!(*stagedef.goals[0].object.lock().unwrap(), expected_goal);
@@ -922,7 +946,7 @@ mod test {
         };
 
         let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
-        let mut sd_reader = StageDefReader::new(file, &Game::SMB2);
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
         let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
         assert_eq!(stagedef.collision_headers.len(), 1);

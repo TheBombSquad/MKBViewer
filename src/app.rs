@@ -20,8 +20,7 @@ pub struct MkbViewerApp {
     /// A file pending to load, which we will split off into a new window to handle once the
     /// promise has a result.
     pending_file_to_load: Option<Promise<Option<FileHandleWrapper>>>,
-    /// A collection of all the ['stagedef instances'](StageDefInstance) that are
-    /// currently loaded.
+    /// Collection of all loaded [StageDefInstance] structs.
     stagedef_viewers: Vec<StageDefInstance>,
     /// The state of the central widget, used to display a message indicating the status.
     state: CentralWidgetState,
@@ -224,7 +223,7 @@ impl eframe::App for MkbViewerApp {
         for viewer in self.stagedef_viewers.iter_mut() {
             // Handle whether or not the window is closed. We do this to avoid borrowing the entire
             // struct just to mutate this, we'll check if this is modified later on
-            let mut is_open = viewer.is_active.clone();
+            let mut is_open = viewer.is_active;
 
             let window = egui::Window::new(viewer.get_filename())
                 .constrain(true)
@@ -270,7 +269,7 @@ impl eframe::App for MkbViewerApp {
                             let mut inspectable_count = open_inspector_items.len();
 
                             for inspectable in open_inspector_items {
-                                inspectable_count = inspectable_count - 1;
+                                inspectable_count -= 1;
                                 let (field, label, description) = inspectable;
                                 field.inspect_mut(&label, ui);
                                 ui.label(description);
@@ -348,7 +347,7 @@ impl FileHandleWrapper {
 
 /// Represents which type of file we are expecting from a file picker.
 ///
-/// By default, this will be a [StagedefType](MkbFileType::StagedefType).
+/// By default, this will be a [``StagedefType``](MkbFileType::StagedefType).
 #[derive(Debug)]
 pub enum MkbFileType {
     StagedefType,
@@ -366,8 +365,8 @@ impl MkbFileType {
         filter: &MkbFileType,
     ) -> (&'static str, &'static [&'static str]) {
         match filter {
-            MkbFileType::StagedefType => (&("Stagedef files"), &["lz", "lz.raw"]),
-            MkbFileType::WsModConfigType => (&("Workshop Mod config files"), &["txt"]),
+            MkbFileType::StagedefType => (("Stagedef files"), &["lz", "lz.raw"]),
+            MkbFileType::WsModConfigType => (("Workshop Mod config files"), &["txt"]),
         }
     }
 }
