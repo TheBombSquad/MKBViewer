@@ -9,15 +9,15 @@ use std::{
 };
 use tracing::{debug, event, warn, Level};
 
-/// Helper function that returns a new SeekFrom::Start from the given u32 offset.
+/// Helper function that returns a new ``SeekFrom::Start`` from the given u32 offset.
 /// Mostly used for convenience for writing out default header formats.
 const fn from_start(offset: u32) -> SeekFrom {
     SeekFrom::Start(offset as u64)
 }
 
-/// Helper function that takes a SeekFrom::Start and applies the given u32 offset to it.
+/// Helper function that takes a ``SeekFrom::Start`` and applies the given u32 offset to it.
 /// Mostly used for convenience for header formats like collision headers.
-/// Does not work on other variants of SeekFrom.
+/// Does not work on other variants of ``SeekFrom``.
 const fn from_relative(start: SeekFrom, offset: u32) -> SeekFrom {
     if let SeekFrom::Start(o) = start {
         SeekFrom::Start(o + offset as u64)
@@ -26,8 +26,8 @@ const fn from_relative(start: SeekFrom, offset: u32) -> SeekFrom {
     }
 }
 
-/// Helper function that takes two SeekFrom::Start objects, and subtracts their offsets.
-/// Does not work on other variants of SeekFrom.
+/// Helper function that takes two ``SeekFrom::Start`` objects, and subtracts their offsets.
+/// Does not work on other variants of ``SeekFrom``.
 /// Returns Err if the resulting value would be negative.
 fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
     if let SeekFrom::Start(x_offset) = x {
@@ -37,8 +37,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
                     "Resulting offset difference was negative",
                 ))
             } else {
-                Ok(u32::try_from(x_offset.clone()).unwrap()
-                    - u32::try_from(y_offset.clone()).unwrap())
+                Ok(u32::try_from(*x_offset).unwrap() - u32::try_from(*y_offset).unwrap())
             }
         } else {
             panic!("Did not pass a SeekFrom::Start to y parameter for difference (this should never happen)");
@@ -102,18 +101,17 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
 }
 
 trait SeekExtSmb {
-    fn seek_fileoffset(&mut self, offset: &FileOffset) -> io::Result<u64>;
+    fn try_seek(&mut self, offset: FileOffset) -> io::Result<u64>;
 }
 
 impl<T: Seek> SeekExtSmb for T {
-    fn seek_fileoffset(&mut self, offset: &FileOffset) -> io::Result<u64> {
+    fn try_seek(&mut self, offset: FileOffset) -> io::Result<u64> {
         match offset {
             FileOffset::Unused => Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Attempted to seek to an unused value",
             )),
-            FileOffset::OffsetOnly(o) => self.seek(*o),
-            FileOffset::CountOffset(_, o) => self.seek(*o),
+            FileOffset::OffsetOnly(o) | FileOffset::CountOffset(_, o) => self.seek(o),
         }
     }
 }
@@ -163,11 +161,7 @@ impl StagedefSized for Goal {
     }
 }
 
-trait StageDefRead {
-    fn read() -> Self;
-}
-
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 enum FileOffset {
     #[default]
     Unused,
@@ -342,7 +336,7 @@ impl<R: Read + Seek> StageDefReader<R> {
     pub fn new(reader: R, game: &Game) -> Self {
         Self {
             reader,
-            game: game.clone(),
+            game: *game,
             file_header: StageDefFileHeaderFormat::default(),
         }
     }
@@ -353,39 +347,43 @@ impl<R: Read + Seek> StageDefReader<R> {
         self.file_header = self.read_file_header_offsets::<B>()?;
 
         // Read magic numbers
-        if let Ok(_) = self
+        if self
             .reader
-            .seek_fileoffset(&self.file_header.magic_number_1_offset)
+            .try_seek(self.file_header.magic_number_1_offset)
+            .is_ok()
         {
             stagedef.magic_number_1 = self.reader.read_f32::<B>()?;
         }
 
-        if let Ok(_) = self
+        if self
             .reader
-            .seek_fileoffset(&self.file_header.magic_number_2_offset)
+            .try_seek(self.file_header.magic_number_2_offset)
+            .is_ok()
         {
             stagedef.magic_number_2 = self.reader.read_f32::<B>()?;
         }
 
-        // Start position and fallout level
+        // Read start position and fallout level
         // TODO: Support multiple start positions
-        if let Ok(_) = self
+        if self
             .reader
-            .seek_fileoffset(&self.file_header.start_position_ptr_offset)
+            .try_seek(self.file_header.start_position_ptr_offset)
+            .is_ok()
         {
             stagedef.start_position = self.reader.read_vec3::<B>()?;
         }
 
-        if let Ok(_) = self
+        if self
             .reader
-            .seek_fileoffset(&self.file_header.fallout_position_ptr_offset)
+            .try_seek(self.file_header.fallout_position_ptr_offset)
+            .is_ok()
         {
             stagedef.fallout_level = self.reader.read_f32::<B>()?;
         }
 
         // TODO:: Fill this out...
 
-        // Goal list
+        // Read goal list
         if let FileOffset::CountOffset(c, o) = self.file_header.goal_list_offset {
             self.reader.seek(o)?;
             for i in 0..c {
@@ -395,13 +393,12 @@ impl<R: Read + Seek> StageDefReader<R> {
             }
         }
 
-        // Collision headers - done last so we can properly set up references to other global
+        // Read all collision headers - done last so we can properly set up references to other global
         // stagedef objects
         // TODO: Change based on game
-        const COLLISION_HEADER_SIZE: u32 = 0x49C;
         if let FileOffset::CountOffset(c, o) = self.file_header.collision_header_list_offset {
             for i in 0..c {
-                let current_offset = from_relative(o, COLLISION_HEADER_SIZE * i);
+                let current_offset = from_relative(o, CollisionHeader::size() * i);
                 self.reader.seek(current_offset)?;
                 debug!(
                     "Reading collision header at {:x}",
@@ -429,128 +426,187 @@ impl<R: Read + Seek> StageDefReader<R> {
         current_format.magic_number_2_offset = default_format.magic_number_2_offset;
 
         // Read collision header count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.collision_header_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.collision_header_list_offset)
+            .is_ok()
+        {
             current_format.collision_header_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read start position offset
-        if let FileOffset::OffsetOnly(offset) = default_format.start_position_ptr_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.start_position_ptr_offset)
+            .is_ok()
+        {
             current_format.start_position_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read fallout level offset
-        if let FileOffset::OffsetOnly(offset) = default_format.fallout_position_ptr_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.fallout_position_ptr_offset)
+            .is_ok()
+        {
             current_format.fallout_position_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read goal count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.goal_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.goal_list_offset)
+            .is_ok()
+        {
             current_format.goal_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read bumper count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.bumper_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.bumper_list_offset)
+            .is_ok()
+        {
             current_format.bumper_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read jamabar count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.jamabar_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.jamabar_list_offset)
+            .is_ok()
+        {
             current_format.jamabar_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read banana count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.banana_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.banana_list_offset)
+            .is_ok()
+        {
             current_format.banana_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read cone_col count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.cone_col_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.cone_col_list_offset)
+            .is_ok()
+        {
             current_format.cone_col_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read cyl_col count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.cyl_col_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.cyl_col_list_offset)
+            .is_ok()
+        {
             current_format.cyl_col_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fallout_vol count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.fallout_vol_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.fallout_vol_list_offset)
+            .is_ok()
+        {
             current_format.fallout_vol_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read bg_model count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.bg_model_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.bg_model_list_offset)
+            .is_ok()
+        {
             current_format.bg_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fg_model count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.fg_model_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.fg_model_list_offset)
+            .is_ok()
+        {
             current_format.fg_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read reflective_model count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.reflective_model_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.reflective_model_list_offset)
+            .is_ok()
+        {
             current_format.reflective_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_instance_list count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.model_instance_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.model_instance_list_offset)
+            .is_ok()
+        {
             current_format.model_instance_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_ptr_a count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.model_ptr_a_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.model_ptr_a_list_offset)
+            .is_ok()
+        {
             current_format.model_ptr_a_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_ptr_b count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.model_ptr_b_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.model_ptr_b_list_offset)
+            .is_ok()
+        {
             current_format.model_ptr_b_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read switch count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.switch_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.switch_list_offset)
+            .is_ok()
+        {
             current_format.switch_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fog_anim_ptr offset
-        if let FileOffset::OffsetOnly(offset) = default_format.fog_anim_ptr_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.fog_anim_ptr_offset)
+            .is_ok()
+        {
             current_format.fog_anim_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read wormhole count/offset
-        if let FileOffset::OffsetOnly(offset) = default_format.wormhole_list_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.wormhole_list_offset)
+            .is_ok()
+        {
             current_format.wormhole_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fog_ptr offset
-        if let FileOffset::OffsetOnly(offset) = default_format.fog_ptr_offset {
-            self.reader.seek(offset)?;
+        if self.reader.try_seek(default_format.fog_ptr_offset).is_ok() {
             current_format.fog_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read mystery_3_ptr offset
-        if let FileOffset::OffsetOnly(offset) = default_format.mystery_3_ptr_offset {
-            self.reader.seek(offset)?;
+        if self
+            .reader
+            .try_seek(default_format.mystery_3_ptr_offset)
+            .is_ok()
+        {
             current_format.mystery_3_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
@@ -569,31 +625,25 @@ impl<R: Read + Seek> StageDefReader<R> {
         let mut collision_header = CollisionHeader::default();
 
         // Read center of rotation position
-        if let FileOffset::OffsetOnly(offset) = current_format.center_of_rotation_offset {
-            self.reader.seek(offset)?;
+        if self.reader.try_seek(current_format.center_of_rotation_offset).is_ok() {
             collision_header.center_of_rotation_position = self.reader.read_vec3::<B>()?;
         }
 
-        // TODO: Fill this out...
+        // TODO: Fill out the rest of the collision header structs
         // Read goals
-        if let FileOffset::OffsetOnly(o) = current_format.goal_list_offset {
-            self.reader.seek(o)?;
+        if self.reader.try_seek(current_format.goal_list_offset).is_ok() {
             let goal_co = self.reader.read_count_offset::<B>()?;
             if let FileOffset::CountOffset(local_count, local_offset) = goal_co {
                 self.reader.seek(local_offset)?;
-                debug!(
-                    "Reading collision header goals at {:x}",
-                    self.reader.stream_position()?
-                );
+
                 // Attempt to get goals from global list and re-adjust indices for our local list
                 if let Some(objs) = Self::get_global_indices(
-                    &local_count,
+                    local_count,
                     &local_offset,
                     &self.file_header.goal_list_offset,
                     &stagedef.goals,
                 ) {
                     collision_header.goals = objs;
-                    debug!("Found {:} goals", collision_header.goals.len());
                 }
                 // Get goals from somewhere else
                 else {
@@ -611,52 +661,48 @@ impl<R: Read + Seek> StageDefReader<R> {
 
         Ok(collision_header)
     }
-
+    
     fn get_global_indices<T: StagedefSized>(
-        local_count: &u32,
+        local_count: u32,
         local_offset: &SeekFrom,
         global_co: &FileOffset,
-        global_obj_list: &Vec<GlobalStagedefObject<T>>,
+        global_obj_list: &[GlobalStagedefObject<T>],
     ) -> Option<Vec<GlobalStagedefObject<T>>> {
         if let FileOffset::CountOffset(global_count, global_offset) = global_co {
             // We want to compare the local offset of this list to the global one to find out
             // where we are in the global list
-            let try_diff = try_get_offset_difference(local_offset, global_offset);
-            match try_diff {
+            if let Ok(diff) = try_get_offset_difference(local_offset, global_offset) {
                 // The difference isn't negative, so the object(s) is likely to be in or after the
                 // global list
-                Ok(diff) => {
-                    let global_size = global_count * T::size();
-                    // The difference is within the bounds of the list
-                    if diff < global_size {
-                        let start_index = diff / T::size();
-                        let mut local_reindex_value = 0;
-                        let matching_global_objs: Vec<GlobalStagedefObject<T>> = global_obj_list
-                            .iter()
-                            .filter(|x| x.index >= start_index + (local_count - 1))
-                            .cloned()
-                            .map(|mut x| {
-                                x.index = local_reindex_value;
-                                local_reindex_value += 1;
-                                x
-                            })
-                            .collect();
-                        assert_eq!(true, matching_global_objs.len() <= global_obj_list.len());
-                        Some(matching_global_objs)
-                    }
-                    // The difference isn't within the bounds of the list, so the object(s) is not in
-                    // the global list
-                    else {
-                        debug!("Failed global object retreival: local list of size {:} larger than global list of size {:}", diff, global_size);
-                        None
-                    }
+                let global_size = global_count * T::size();
+                // The difference is within the bounds of the list
+                if diff < global_size {
+                    let start_index = diff / T::size();
+                    let mut local_reindex_value = 0;
+                    let matching_global_objs: Vec<GlobalStagedefObject<T>> = global_obj_list
+                        .iter()
+                        .filter(|x| x.index >= start_index + (local_count - 1))
+                        .cloned()
+                        .map(|mut x| {
+                            x.index = local_reindex_value;
+                            local_reindex_value += 1;
+                            x
+                        })
+                        .collect();
+                    Some(matching_global_objs)
                 }
-                // The difference is negative, so the object(s) is before the global list for some
-                // reason
-                Err(_) => {
-                    debug!("Failed global object retreival: objects before list");
+                // The difference isn't within the bounds of the list, so the object(s) is not in
+                // the global list
+                else {
+                    debug!("Failed global object retreival: local list of size {:} larger than global list of size {:}", diff, global_size);
                     None
                 }
+            }
+            // The difference is negative, so the object(s) is before the global list for some
+            // reason
+            else {
+                debug!("Failed global object retreival: objects before list");
+                None
             }
         }
         // There is no global list
@@ -668,6 +714,7 @@ impl<R: Read + Seek> StageDefReader<R> {
 }
 
 mod test {
+    #![allow(clippy::unreadable_literal)]
     use super::*;
 
     #[cfg(test)]
@@ -861,7 +908,9 @@ mod test {
 
     #[test]
     fn test_collision_header_goal_parse() {
-        tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
         let expected_goal = Goal {
             position: Vector3 {
                 x: 0.0,
