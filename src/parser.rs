@@ -36,9 +36,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
     if let SeekFrom::Start(x_offset) = x {
         if let SeekFrom::Start(y_offset) = y {
             if y_offset > x_offset {
-                Err(anyhow::Error::msg(
-                    "Resulting offset difference was negative",
-                ))
+                Err(anyhow::Error::msg("Resulting offset difference was negative"))
             } else {
                 Ok(u32::try_from(*x_offset).unwrap() - u32::try_from(*y_offset).unwrap())
             }
@@ -97,10 +95,7 @@ trait SeekExtSmb {
 impl<T: Seek> SeekExtSmb for T {
     fn try_seek(&mut self, offset: FileOffset) -> io::Result<u64> {
         match offset {
-            FileOffset::Unused => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Attempted to seek to an unused value",
-            )),
+            FileOffset::Unused => Err(io::Error::new(io::ErrorKind::Other, "Attempted to seek to an unused value")),
             FileOffset::OffsetOnly(o) | FileOffset::CountOffset(_, o) => self.seek(o),
         }
     }
@@ -151,8 +146,7 @@ impl StageDefIO for CollisionHeader {
     }
     // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
     // instead
-    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self>
-    {
+    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self> {
         unimplemented!();
     }
 }
@@ -165,7 +159,7 @@ impl StageDefIO for Goal {
     where
         Self: Sized,
         B: ByteOrder,
-        R: ReadBytesExtSmb + ReadBytesExt + Read
+        R: ReadBytesExtSmb + ReadBytesExt + Read,
     {
         let position = reader.read_vec3::<B>()?;
         let rotation = reader.read_vec3_short::<B>()?;
@@ -374,37 +368,21 @@ impl<R: Read + Seek> StageDefReader<R> {
         self.file_header = self.read_file_header_offsets::<B>()?;
 
         // Read magic numbers
-        if self
-            .reader
-            .try_seek(self.file_header.magic_number_1_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(self.file_header.magic_number_1_offset).is_ok() {
             stagedef.magic_number_1 = self.reader.read_f32::<B>()?;
         }
 
-        if self
-            .reader
-            .try_seek(self.file_header.magic_number_2_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(self.file_header.magic_number_2_offset).is_ok() {
             stagedef.magic_number_2 = self.reader.read_f32::<B>()?;
         }
 
         // Read start position and fallout level
         // TODO: Support multiple start positions
-        if self
-            .reader
-            .try_seek(self.file_header.start_position_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(self.file_header.start_position_ptr_offset).is_ok() {
             stagedef.start_position = self.reader.read_vec3::<B>()?;
         }
 
-        if self
-            .reader
-            .try_seek(self.file_header.fallout_position_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(self.file_header.fallout_position_ptr_offset).is_ok() {
             stagedef.fallout_level = self.reader.read_f32::<B>()?;
         }
 
@@ -447,173 +425,97 @@ impl<R: Read + Seek> StageDefReader<R> {
         current_format.magic_number_2_offset = default_format.magic_number_2_offset;
 
         // Read collision header count/offset
-        if self
-            .reader
-            .try_seek(default_format.collision_header_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.collision_header_list_offset).is_ok() {
             current_format.collision_header_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read start position offset
-        if self
-            .reader
-            .try_seek(default_format.start_position_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.start_position_ptr_offset).is_ok() {
             current_format.start_position_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read fallout level offset
-        if self
-            .reader
-            .try_seek(default_format.fallout_position_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.fallout_position_ptr_offset).is_ok() {
             current_format.fallout_position_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read goal count/offset
-        if self
-            .reader
-            .try_seek(default_format.goal_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.goal_list_offset).is_ok() {
             current_format.goal_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read bumper count/offset
-        if self
-            .reader
-            .try_seek(default_format.bumper_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.bumper_list_offset).is_ok() {
             current_format.bumper_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read jamabar count/offset
-        if self
-            .reader
-            .try_seek(default_format.jamabar_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.jamabar_list_offset).is_ok() {
             current_format.jamabar_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read banana count/offset
-        if self
-            .reader
-            .try_seek(default_format.banana_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.banana_list_offset).is_ok() {
             current_format.banana_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read cone_col count/offset
-        if self
-            .reader
-            .try_seek(default_format.cone_col_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.cone_col_list_offset).is_ok() {
             current_format.cone_col_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read cyl_col count/offset
-        if self
-            .reader
-            .try_seek(default_format.cyl_col_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.cyl_col_list_offset).is_ok() {
             current_format.cyl_col_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fallout_vol count/offset
-        if self
-            .reader
-            .try_seek(default_format.fallout_vol_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.fallout_vol_list_offset).is_ok() {
             current_format.fallout_vol_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read bg_model count/offset
-        if self
-            .reader
-            .try_seek(default_format.bg_model_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.bg_model_list_offset).is_ok() {
             current_format.bg_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fg_model count/offset
-        if self
-            .reader
-            .try_seek(default_format.fg_model_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.fg_model_list_offset).is_ok() {
             current_format.fg_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read reflective_model count/offset
-        if self
-            .reader
-            .try_seek(default_format.reflective_model_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.reflective_model_list_offset).is_ok() {
             current_format.reflective_model_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_instance_list count/offset
-        if self
-            .reader
-            .try_seek(default_format.model_instance_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.model_instance_list_offset).is_ok() {
             current_format.model_instance_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_ptr_a count/offset
-        if self
-            .reader
-            .try_seek(default_format.model_ptr_a_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.model_ptr_a_list_offset).is_ok() {
             current_format.model_ptr_a_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read model_ptr_b count/offset
-        if self
-            .reader
-            .try_seek(default_format.model_ptr_b_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.model_ptr_b_list_offset).is_ok() {
             current_format.model_ptr_b_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read switch count/offset
-        if self
-            .reader
-            .try_seek(default_format.switch_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.switch_list_offset).is_ok() {
             current_format.switch_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
         // Read fog_anim_ptr offset
-        if self
-            .reader
-            .try_seek(default_format.fog_anim_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.fog_anim_ptr_offset).is_ok() {
             current_format.fog_anim_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
         // Read wormhole count/offset
-        if self
-            .reader
-            .try_seek(default_format.wormhole_list_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.wormhole_list_offset).is_ok() {
             current_format.wormhole_list_offset = self.reader.read_count_offset::<B>()?;
         }
 
@@ -623,11 +525,7 @@ impl<R: Read + Seek> StageDefReader<R> {
         }
 
         // Read mystery_3_ptr offset
-        if self
-            .reader
-            .try_seek(default_format.mystery_3_ptr_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(default_format.mystery_3_ptr_offset).is_ok() {
             current_format.mystery_3_ptr_offset = self.reader.read_offset::<B>()?;
         }
 
@@ -637,20 +535,12 @@ impl<R: Read + Seek> StageDefReader<R> {
     // TODO: SMB1 format
     // Reads a collision header from the specified offset. Does not advance the reader by the max
     // size of a collision header, 0x49C.
-    fn read_collision_header<B: ByteOrder>(
-        &mut self,
-        stagedef: &StageDef,
-        offset: SeekFrom,
-    ) -> Result<CollisionHeader> {
+    fn read_collision_header<B: ByteOrder>(&mut self, stagedef: &StageDef, offset: SeekFrom) -> Result<CollisionHeader> {
         let current_format = StageDefCollisionHeaderFormat::new(&self.game, offset);
         let mut collision_header = CollisionHeader::default();
 
         // Read center of rotation position
-        if self
-            .reader
-            .try_seek(current_format.center_of_rotation_offset)
-            .is_ok()
-        {
+        if self.reader.try_seek(current_format.center_of_rotation_offset).is_ok() {
             collision_header.center_of_rotation_position = self.reader.read_vec3::<B>()?;
         }
 
@@ -675,10 +565,7 @@ impl<R: Read + Seek> StageDefReader<R> {
             let mut vec = Vec::new();
             self.reader.seek(o)?;
             for i in 0..c {
-                vec.push(GlobalStagedefObject::new(
-                    T::try_from_reader::<R, B>(&mut self.reader)?,
-                    i,
-                ));
+                vec.push(GlobalStagedefObject::new(T::try_from_reader::<R, B>(&mut self.reader)?, i));
             }
             Ok(vec)
         } else {
@@ -698,12 +585,7 @@ impl<R: Read + Seek> StageDefReader<R> {
                 self.reader.seek(local_offset)?;
 
                 // Attempt to get objects from global list and re-adjust indices for our local list
-                let vec = match Self::get_global_indices(
-                    local_count,
-                    &local_offset,
-                    &global_list_offset,
-                    global_list,
-                ) {
+                let vec = match Self::get_global_indices(local_count, &local_offset, &global_list_offset, global_list) {
                     Some(objs) => objs,
                     None => self.read_stagedef_list::<B, T>(local_count_offset)?,
                 };
@@ -749,7 +631,10 @@ impl<R: Read + Seek> StageDefReader<R> {
                 // The difference isn't within the bounds of the list, so the object(s) is not in
                 // the global list
                 else {
-                    debug!("Failed global object retrieval: local list of size {:} larger than global list of size {:}", diff, global_size);
+                    debug!(
+                        "Failed global object retrieval: local list of size {:} larger than global list of size {:}",
+                        diff, global_size
+                    );
                     None
                 }
             }
@@ -964,9 +849,7 @@ mod test {
 
     #[test]
     fn test_collision_header_goal_parse() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
         let expected_goal = Goal {
             position: Vector3 {
                 x: 0.0,
@@ -984,10 +867,7 @@ mod test {
         assert_eq!(stagedef.collision_headers.len(), 1);
         assert_eq!(stagedef.collision_headers[0].goals.len(), 1);
 
-        let test_goal = stagedef.collision_headers[0].goals[0]
-            .object
-            .lock()
-            .unwrap();
+        let test_goal = stagedef.collision_headers[0].goals[0].object.lock().unwrap();
         assert_eq!(*test_goal, expected_goal);
     }
     #[test]

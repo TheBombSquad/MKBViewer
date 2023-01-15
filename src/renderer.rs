@@ -2,16 +2,11 @@ use eframe::egui_glow;
 use std::cell::RefCell;
 use std::sync::Arc;
 use three_d::renderer::geometry::CpuMesh;
-use three_d::{
-    degrees, vec3, Camera, ClearState, Color, ColorMaterial, Context, Gm, Mesh, Viewport,
-};
+use three_d::{degrees, vec3, Camera, ClearState, Color, ColorMaterial, Context, Gm, Mesh, Viewport};
 
 /// Gives us a [Renderer] object to do render-y stuff with
 /// src: https://github.com/emilk/egui/blob/master/examples/custom_3d_three-d/src/main.rs
-pub fn with_three_d<R>(
-    gl: &std::sync::Arc<glow::Context>,
-    f: impl FnOnce(&mut Renderer) -> R,
-) -> R {
+pub fn with_three_d<R>(gl: &std::sync::Arc<glow::Context>, f: impl FnOnce(&mut Renderer) -> R) -> R {
     thread_local! {
         pub static THREE_D: RefCell<Option<Renderer>> = RefCell::new(None);
     }
@@ -34,11 +29,7 @@ pub struct FrameInput<'a> {
 }
 
 impl FrameInput<'_> {
-    pub fn new(
-        context: &three_d::Context,
-        info: &egui::PaintCallbackInfo,
-        painter: &egui_glow::Painter,
-    ) -> Self {
+    pub fn new(context: &three_d::Context, info: &egui::PaintCallbackInfo, painter: &egui_glow::Painter) -> Self {
         use three_d::*;
 
         // Disable sRGB textures for three-d
@@ -51,21 +42,8 @@ impl FrameInput<'_> {
 
         // Constructs a screen render target to render the final image to
         let screen = painter.intermediate_fbo().map_or_else(
-            || {
-                RenderTarget::screen(
-                    context,
-                    info.viewport.width() as u32,
-                    info.viewport.height() as u32,
-                )
-            },
-            |fbo| {
-                RenderTarget::from_framebuffer(
-                    context,
-                    info.viewport.width() as u32,
-                    info.viewport.height() as u32,
-                    fbo,
-                )
-            },
+            || RenderTarget::screen(context, info.viewport.width() as u32, info.viewport.height() as u32),
+            |fbo| RenderTarget::from_framebuffer(context, info.viewport.width() as u32, info.viewport.height() as u32, fbo),
         );
 
         // Set where to paint
@@ -117,11 +95,7 @@ impl Renderer {
             20000.0,
         );
 
-        let pos = vec![
-            vec3(0.5, -0.5, 0.0),
-            vec3(-0.5, -0.5, 0.0),
-            vec3(0.0, 0.5, 0.0),
-        ];
+        let pos = vec![vec3(0.5, -0.5, 0.0), vec3(-0.5, -0.5, 0.0), vec3(0.0, 0.5, 0.0)];
 
         let col = vec![
             Color::new(255, 0, 0, 255),
@@ -150,12 +124,9 @@ impl Renderer {
         frame_input
             .screen
             .clear_partially(frame_input.scissor_box, ClearState::depth(1.0));
-        frame_input.screen.render_partially(
-            frame_input.scissor_box,
-            &self.camera,
-            [&self.test_model],
-            &[],
-        );
+        frame_input
+            .screen
+            .render_partially(frame_input.scissor_box, &self.camera, [&self.test_model], &[]);
         frame_input.screen.into_framebuffer()
     }
 }

@@ -152,35 +152,22 @@ impl StageDefInstanceUiState {
                 ui,
             );
 
-            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(
+            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(ui, |ui| {
+                for (i, goal) in stagedef.goals.iter_mut().enumerate() {
+                    self.display_tree_element(goal, "Goal", Some(i), "Goal!", inspectables, ui);
+                }
+            });
+
+            egui::CollapsingHeader::new(format!("Collision Headers ({})", stagedef.collision_headers.len())).show(
                 ui,
                 |ui| {
-                    for (i, goal) in stagedef.goals.iter_mut().enumerate() {
-                        self.display_tree_element(goal, "Goal", Some(i), "Goal!", inspectables, ui);
+                    for (col_header_idx, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
+                        for (goal_idx, goal) in col_header.goals.iter_mut().enumerate() {
+                            self.display_tree_element(goal, "Goal", Some(goal_idx), "Goal!", inspectables, ui);
+                        }
                     }
                 },
             );
-
-            egui::CollapsingHeader::new(format!(
-                "Collision Headers ({})",
-                stagedef.collision_headers.len()
-            ))
-            .show(ui, |ui| {
-                for (col_header_idx, col_header) in
-                    stagedef.collision_headers.iter_mut().enumerate()
-                {
-                    for (goal_idx, goal) in col_header.goals.iter_mut().enumerate() {
-                        self.display_tree_element(
-                            goal,
-                            "Goal",
-                            Some(goal_idx),
-                            "Goal!",
-                            inspectables,
-                            ui,
-                        );
-                    }
-                }
-            });
         });
     }
 }
@@ -228,11 +215,7 @@ pub struct ShortVector3 {
 impl Display for ShortVector3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let vec_degrees = Vector3::from(*self);
-        write!(
-            f,
-            "({:.1}º, {:.1}º, {:.1}º)",
-            vec_degrees.x, vec_degrees.y, vec_degrees.z
-        )
+        write!(f, "({:.1}º, {:.1}º, {:.1}º)", vec_degrees.x, vec_degrees.y, vec_degrees.z)
     }
 }
 

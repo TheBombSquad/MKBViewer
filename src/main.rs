@@ -41,9 +41,7 @@ fn main() {
 
     console_error_panic_hook::set_once();
 
-    let log_config = tracing_wasm::WASMLayerConfigBuilder::new()
-        .set_max_level(LOG_LEVEL)
-        .build();
+    let log_config = tracing_wasm::WASMLayerConfigBuilder::new().set_max_level(LOG_LEVEL).build();
 
     tracing_wasm::set_as_global_default_with_config(log_config);
 

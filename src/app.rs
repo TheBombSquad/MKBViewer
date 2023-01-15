@@ -77,11 +77,7 @@ impl MkbViewerApp {
         };
 
         // Construct the new StageDefInstance since we've loaded the file
-        event!(
-            Level::INFO,
-            "Loading pending file: {}...",
-            filehandle.file_name
-        );
+        event!(Level::INFO, "Loading pending file: {}...", filehandle.file_name);
 
         // TODO: Handle error results instead of unwrapping
         let new_instance = StageDefInstance::new(filehandle).unwrap();
@@ -95,17 +91,12 @@ impl MkbViewerApp {
     /// Creates a promise for loading of files from a file picker.
     ///
     /// Spawns a new thread on native, otherwise handles asyncronously on Wasm32.
-    fn get_promise_from_file_dialog(
-        filter_type: MkbFileType,
-    ) -> Promise<Option<FileHandleWrapper>> {
+    fn get_promise_from_file_dialog(filter_type: MkbFileType) -> Promise<Option<FileHandleWrapper>> {
         let filter = MkbFileType::get_rfd_extension_filter(&filter_type);
 
         #[cfg(target_arch = "wasm32")]
         let promise = Promise::spawn_async(async {
-            let file_dialog = AsyncFileDialog::new()
-                .add_filter(filter.0, filter.1)
-                .pick_file()
-                .await;
+            let file_dialog = AsyncFileDialog::new().add_filter(filter.0, filter.1).pick_file().await;
             if let Some(f) = file_dialog {
                 Some(FileHandleWrapper::new(f, filter_type).await)
             } else {
@@ -116,10 +107,7 @@ impl MkbViewerApp {
         #[cfg(not(target_arch = "wasm32"))]
         let promise = Promise::spawn_thread("get_file_from_dialog_native", || {
             let file_dialog_future = async {
-                let file_dialog = AsyncFileDialog::new()
-                    .add_filter(filter.0, filter.1)
-                    .pick_file()
-                    .await;
+                let file_dialog = AsyncFileDialog::new().add_filter(filter.0, filter.1).pick_file().await;
                 if let Some(f) = file_dialog {
                     Some(FileHandleWrapper::new(f, filter_type).await)
                 } else {
@@ -205,13 +193,11 @@ impl eframe::App for MkbViewerApp {
         });
 
         // Toolbar
-        TopBottomPanel::top("mkbviewer_toolbar")
-            .min_height(32.0)
-            .show(ctx, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.label("Toolbar goes here...");
-                });
+        TopBottomPanel::top("mkbviewer_toolbar").min_height(32.0).show(ctx, |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.label("Toolbar goes here...");
             });
+        });
 
         // Central panel
         MkbViewerApp::get_central_widget_frame(self, ctx);
@@ -225,9 +211,7 @@ impl eframe::App for MkbViewerApp {
             // struct just to mutate this, we'll check if this is modified later on
             let mut is_open = viewer.is_active;
 
-            let window = egui::Window::new(viewer.get_filename())
-                .constrain(true)
-                .open(&mut is_open);
+            let window = egui::Window::new(viewer.get_filename()).constrain(true).open(&mut is_open);
 
             window.show(ctx, |ui| {
                 // TODO: Actual menu options
@@ -254,10 +238,7 @@ impl eframe::App for MkbViewerApp {
                                 });
 
                                 // Unselect if we click outside of the tree
-                                if ui
-                                    .allocate_response(ui.available_size(), egui::Sense::click())
-                                    .clicked()
-                                {
+                                if ui.allocate_response(ui.available_size(), egui::Sense::click()).clicked() {
                                     viewer.ui_state.selected_tree_items.clear();
                                 }
                             });
@@ -286,18 +267,13 @@ impl eframe::App for MkbViewerApp {
                 egui::Frame::canvas(ui.style())
                     .outer_margin(Margin::symmetric(5.0, 5.0))
                     .show(ui, |ui| {
-                        let (rect, response) =
-                            ui.allocate_at_least(ui.max_rect().size(), egui::Sense::drag());
+                        let (rect, response) = ui.allocate_at_least(ui.max_rect().size(), egui::Sense::drag());
 
                         let callback = egui::PaintCallback {
                             rect,
                             callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
                                 renderer::with_three_d(painter.gl(), |renderer| {
-                                    renderer.render(FrameInput::new(
-                                        &renderer.context,
-                                        &info,
-                                        painter,
-                                    ));
+                                    renderer.render(FrameInput::new(&renderer.context, &info, painter));
                                 })
                             })),
                         };
@@ -361,9 +337,7 @@ impl Default for MkbFileType {
 }
 
 impl MkbFileType {
-    pub fn get_rfd_extension_filter(
-        filter: &MkbFileType,
-    ) -> (&'static str, &'static [&'static str]) {
+    pub fn get_rfd_extension_filter(filter: &MkbFileType) -> (&'static str, &'static [&'static str]) {
         match filter {
             MkbFileType::StagedefType => (("Stagedef files"), &["lz", "lz.raw"]),
             MkbFileType::WsModConfigType => (("Workshop Mod config files"), &["txt"]),
