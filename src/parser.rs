@@ -56,7 +56,6 @@ trait ReadBytesExtSmb {
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
     fn read_count_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
-    fn read_goal<U: ByteOrder>(&mut self) -> Result<Goal>;
 }
 
 impl<T: ReadBytesExt> ReadBytesExtSmb for T {
@@ -87,20 +86,6 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
         let offset = from_start(self.read_u32::<U>()?);
 
         Ok(FileOffset::CountOffset(count, offset))
-    }
-
-    fn read_goal<U: ByteOrder>(&mut self) -> Result<Goal> {
-        let position = self.read_vec3::<U>()?;
-        let rotation = self.read_vec3_short::<U>()?;
-
-        let goal_type: GoalType = FromPrimitive::from_u8(self.read_u8()?).unwrap_or_default();
-        self.read_u8()?;
-
-        Ok(Goal {
-            position,
-            rotation,
-            goal_type,
-        })
     }
 }
 
@@ -151,19 +136,48 @@ const ANIMATION_HEADER_SIZE: u32 = 0x40;
 const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
 
 /// Provides a method for returning the file size of an object in a [``StageDef``].
-trait StagedefSized {
+trait StageDefIO {
     fn size() -> u32;
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb + ReadBytesExt + Read;
 }
 
-impl StagedefSized for CollisionHeader {
+impl StageDefIO for CollisionHeader {
     fn size() -> u32 {
         COLLISION_HEADER_SIZE
     }
+    // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
+    // instead
+    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self>
+    {
+        unimplemented!();
+    }
 }
 
-impl StagedefSized for Goal {
+impl StageDefIO for Goal {
     fn size() -> u32 {
         GOAL_SIZE
+    }
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb + ReadBytesExt + Read
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+
+        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
+        reader.read_u8()?;
+
+        Ok(Goal {
+            position,
+            rotation,
+            goal_type,
+        })
     }
 }
 
@@ -397,13 +411,8 @@ impl<R: Read + Seek> StageDefReader<R> {
         // TODO:: Fill this out...
 
         // Read goal list
-        if let FileOffset::CountOffset(c, o) = self.file_header.goal_list_offset {
-            self.reader.seek(o)?;
-            for i in 0..c {
-                stagedef
-                    .goals
-                    .push(GlobalStagedefObject::new(self.reader.read_goal::<B>()?, i));
-            }
+        if let Ok(goals) = self.read_stagedef_list::<B, Goal>(self.file_header.goal_list_offset) {
+            stagedef.goals = goals;
         }
 
         // Read all collision headers - done last so we can properly set up references to other global
@@ -413,10 +422,7 @@ impl<R: Read + Seek> StageDefReader<R> {
             for i in 0..c {
                 let current_offset = from_relative(o, CollisionHeader::size() * i);
                 self.reader.seek(current_offset)?;
-                debug!(
-                    "Reading collision header at {:x}",
-                    self.reader.stream_position()?
-                );
+
                 stagedef
                     .collision_headers
                     .push(self.read_collision_header::<B>(&stagedef, current_offset)?);
@@ -650,42 +656,68 @@ impl<R: Read + Seek> StageDefReader<R> {
 
         // TODO: Fill out the rest of the collision header structs
         // Read goals
-        if self
-            .reader
-            .try_seek(current_format.goal_list_offset)
-            .is_ok()
-        {
-            let goal_co = self.reader.read_count_offset::<B>()?;
-            if let FileOffset::CountOffset(local_count, local_offset) = goal_co {
-                self.reader.seek(local_offset)?;
-
-                // Attempt to get goals from global list and re-adjust indices for our local list
-                if let Some(objs) = Self::get_global_indices(
-                    local_count,
-                    &local_offset,
-                    &self.file_header.goal_list_offset,
-                    &stagedef.goals,
-                ) {
-                    collision_header.goals = objs;
-                }
-                // Get goals from somewhere else
-                else {
-                    warn!("Orphan goal list found");
-                    for i in 0..local_count {
-                        collision_header
-                            .goals
-                            .push(GlobalStagedefObject::new(self.reader.read_goal::<B>()?, i));
-                    }
-                }
-            }
-        } else {
-            debug!("No goals foud");
+        if let Ok(goals) = self.read_local_object_list::<B, Goal>(
+            current_format.goal_list_offset,
+            self.file_header.goal_list_offset,
+            &stagedef.goals,
+        ) {
+            collision_header.goals = goals;
         }
 
         Ok(collision_header)
     }
 
-    fn get_global_indices<T: StagedefSized>(
+    fn read_stagedef_list<B: ByteOrder, T: StageDefIO>(
+        &mut self,
+        offset: FileOffset,
+    ) -> Result<Vec<GlobalStagedefObject<T>>> {
+        if let FileOffset::CountOffset(c, o) = offset {
+            let mut vec = Vec::new();
+            self.reader.seek(o)?;
+            for i in 0..c {
+                vec.push(GlobalStagedefObject::new(
+                    T::try_from_reader::<R, B>(&mut self.reader)?,
+                    i,
+                ));
+            }
+            Ok(vec)
+        } else {
+            Err(anyhow::Error::msg("No object list was read"))
+        }
+    }
+
+    fn read_local_object_list<B: ByteOrder, T: StageDefIO>(
+        &mut self,
+        offset: FileOffset,
+        global_list_offset: FileOffset,
+        global_list: &[GlobalStagedefObject<T>],
+    ) -> Result<Vec<GlobalStagedefObject<T>>> {
+        if self.reader.try_seek(offset).is_ok() {
+            let local_count_offset = self.reader.read_count_offset::<B>()?;
+            if let FileOffset::CountOffset(local_count, local_offset) = local_count_offset {
+                self.reader.seek(local_offset)?;
+
+                // Attempt to get objects from global list and re-adjust indices for our local list
+                let vec = match Self::get_global_indices(
+                    local_count,
+                    &local_offset,
+                    &global_list_offset,
+                    global_list,
+                ) {
+                    Some(objs) => objs,
+                    None => self.read_stagedef_list::<B, T>(local_count_offset)?,
+                };
+
+                Ok(vec)
+            } else {
+                Err(anyhow::Error::msg("No object list was read"))
+            }
+        } else {
+            Err(anyhow::Error::msg("No object list was read"))
+        }
+    }
+
+    fn get_global_indices<T: StageDefIO>(
         local_count: u32,
         local_offset: &SeekFrom,
         global_co: &FileOffset,
