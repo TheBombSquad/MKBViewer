@@ -24,7 +24,7 @@ const fn from_relative(start: SeekFrom, offset: u32) -> SeekFrom {
     if let SeekFrom::Start(o) = start {
         SeekFrom::Start(o + offset as u64)
     } else {
-        panic!("Did not pass a SeekFrom::Start to from_relative (this should never happen)");
+        panic!("Did not pass a SeekFrom::Start to from_relative");
     }
 }
 
@@ -41,15 +41,15 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
                 Ok(u32::try_from(*x_offset).unwrap() - u32::try_from(*y_offset).unwrap())
             }
         } else {
-            panic!("Did not pass a SeekFrom::Start to y parameter for difference (this should never happen)");
+            panic!("Did not pass a SeekFrom::Start to y parameter for difference");
         }
     } else {
-        panic!("Did not pass a SeekFrom::Start to x parameter for difference (this should never happen)");
+        panic!("Did not pass a SeekFrom::Start to x parameter for difference");
     }
 }
 
 /// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
-pub trait ReadBytesExtSmb {
+trait ReadBytesExtSmb : ReadBytesExt {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
@@ -115,6 +115,36 @@ enum FileOffset {
     OffsetOnly(SeekFrom),
     /// The offset points to multiple structures in a contiguous list.
     CountOffset(u32, SeekFrom),
+}
+
+
+trait StageDefParsable : StageDefObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+        where
+            Self: Sized,
+            B: ByteOrder,
+            R: ReadBytesExtSmb;
+}
+
+impl StageDefParsable for Goal {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+
+        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
+        reader.read_u8()?;
+
+        Ok(Goal {
+            position,
+            rotation,
+            goal_type,
+        })
+    }
 }
 
 /// Defines the file header format for a Monkey Ball stagedef file.
@@ -227,7 +257,7 @@ struct StageDefCollisionHeaderFormat {
 
 impl StageDefCollisionHeaderFormat {
     #[rustfmt::skip]
-    fn new(game: &Game, header_start: SeekFrom) -> Self {
+    fn new(game: Game, header_start: SeekFrom) -> Self {
         match game {
             SMB2 => Self {
                 center_of_rotation_offset: FileOffset::OffsetOnly(from_relative(header_start, 0x0)),
@@ -466,7 +496,7 @@ impl<R: Read + Seek> StageDefReader<R> {
     // Reads a collision header from the specified offset. Does not advance the reader by the max
     // size of a collision header, 0x49C.
     fn read_collision_header<B: ByteOrder>(&mut self, stagedef: &StageDef, offset: SeekFrom) -> Result<CollisionHeader> {
-        let current_format = StageDefCollisionHeaderFormat::new(&self.game, offset);
+        let current_format = StageDefCollisionHeaderFormat::new(self.game, offset);
         let mut collision_header = CollisionHeader::default();
 
         // Read center of rotation position
@@ -488,7 +518,7 @@ impl<R: Read + Seek> StageDefReader<R> {
     }
 
     /// Read a global stagedef object list
-    fn read_stagedef_list<B: ByteOrder, T: StageDefObject>(
+    fn read_stagedef_list<B: ByteOrder, T: StageDefParsable>(
         &mut self,
         offset: FileOffset,
     ) -> Result<Vec<GlobalStagedefObject<T>>> {
@@ -508,7 +538,7 @@ impl<R: Read + Seek> StageDefReader<R> {
     ///
     /// This is often a subset of a global list, so we pass the relevant global list to this
     /// function in order to determine which objects we should return.
-    fn read_local_object_list<B: ByteOrder, T: StageDefObject>(
+    fn read_local_object_list<B: ByteOrder, T: StageDefParsable>(
         &mut self,
         offset: FileOffset,
         global_list_offset: FileOffset,
@@ -536,7 +566,7 @@ impl<R: Read + Seek> StageDefReader<R> {
 
     /// Return the intersection between a local and global stagedef object list, or ``None`` if no
     /// overlap exists.
-    fn get_global_objects<T: StageDefObject>(
+    fn get_global_objects<T: StageDefParsable>(
         local_count: u32,
         local_offset: &SeekFrom,
         global_co: &FileOffset,

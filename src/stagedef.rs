@@ -14,7 +14,6 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 use num_traits::FromPrimitive;
 
 use crate::app::FileHandleWrapper;
-use crate::parser::ReadBytesExtSmb;
 use crate::parser::StageDefReader;
 
 use egui::{Id, Response, SelectableLabel, Ui};
@@ -505,59 +504,34 @@ const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
 
 /// Provides a method for returning the file size of an object in a [``StageDef``].
 pub trait StageDefObject {
-    fn get_size() -> u32;
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb + ReadBytesExt + Read;
     fn get_name() -> &'static str;
     fn get_description() -> &'static str;
+    fn get_size() -> u32;
 }
 
 impl StageDefObject for CollisionHeader {
-    fn get_size() -> u32 {
-        COLLISION_HEADER_SIZE
-    }
     // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
     // instead
-    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self> {
-        unimplemented!();
-    }
     fn get_name() -> &'static str {
         "Collision Header"
     }
     fn get_description() -> &'static str {
         "A collision header."
     }
+    fn get_size() -> u32 {
+        COLLISION_HEADER_SIZE
+    }
 }
 
 impl StageDefObject for Goal {
-    fn get_size() -> u32 {
-        GOAL_SIZE
-    }
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb + ReadBytesExt + Read,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-
-        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
-        reader.read_u8()?;
-
-        Ok(Goal {
-            position,
-            rotation,
-            goal_type,
-        })
-    }
     fn get_name() -> &'static str {
         "Goal"
     }
     fn get_description() -> &'static str {
         "A goal object. The collision for goals is hardcoded."
     }
+    fn get_size() -> u32 {
+        GOAL_SIZE
+    }
 }
+
