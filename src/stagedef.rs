@@ -4,15 +4,17 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs::File;
 use std::hash::Hash;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::{fs, io::Cursor};
 
-use byteorder::{BigEndian, LittleEndian};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
+use num_traits::FromPrimitive;
 
 use crate::app::FileHandleWrapper;
+use crate::parser::ReadBytesExtSmb;
 use crate::parser::StageDefReader;
 
 use egui::{Id, Response, SelectableLabel, Ui};
@@ -88,7 +90,7 @@ impl StageDefInstanceUiState {
         let is_selected = selected.contains(&next_id);
 
         let formatted_label = match inspector_label_index {
-            Some(i) => format!("{inspector_label} {i}: {}", field.to_string()),
+            Some(i) => format!("{inspector_label} {}: {}", i + 1, field.to_string()),
             None => format!("{inspector_label}: {}", field.to_string()),
         };
 
@@ -121,7 +123,7 @@ impl StageDefInstanceUiState {
             self.display_tree_element(
                 &mut stagedef.magic_number_1,
                 "Magic Number",
-                Some(1),
+                Some(0),
                 "A magic number woah",
                 inspectables,
                 ui,
@@ -129,7 +131,7 @@ impl StageDefInstanceUiState {
             self.display_tree_element(
                 &mut stagedef.magic_number_2,
                 "Magic Number",
-                Some(2),
+                Some(1),
                 "Another magic number woah",
                 inspectables,
                 ui,
@@ -152,22 +154,32 @@ impl StageDefInstanceUiState {
                 ui,
             );
 
-            egui::CollapsingHeader::new(format!("Goals ({})", stagedef.goals.len())).show(ui, |ui| {
-                for (i, goal) in stagedef.goals.iter_mut().enumerate() {
-                    self.display_tree_element(goal, "Goal", Some(i), "Goal!", inspectables, ui);
-                }
-            });
+            self.display_tree_stagedef_object(ui, &mut stagedef.goals, inspectables);
 
             egui::CollapsingHeader::new(format!("Collision Headers ({})", stagedef.collision_headers.len())).show(
                 ui,
                 |ui| {
                     for (col_header_idx, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
-                        for (goal_idx, goal) in col_header.goals.iter_mut().enumerate() {
-                            self.display_tree_element(goal, "Goal", Some(goal_idx), "Goal!", inspectables, ui);
-                        }
+                        egui::CollapsingHeader::new(format!("Collision Header #{}", col_header_idx + 1)).show(ui, |ui| {
+                            self.display_tree_stagedef_object(ui, &mut col_header.goals, inspectables);
+                        });
                     }
                 },
             );
+        });
+    }
+
+    fn display_tree_stagedef_object<'a, T: StageDefObject + EguiInspect + Display + 'a>(
+        &mut self,
+        ui: &mut Ui,
+        objects: &'a mut Vec<GlobalStagedefObject<T>>,
+        inspectables: &mut Vec<Inspectable<'a>>,
+    ) {
+        let header_title = format!("{}s ({})", T::get_name(), objects.len());
+        egui::CollapsingHeader::new(header_title).show(ui, |ui| {
+            for (index, object) in objects.iter_mut().enumerate() {
+                self.display_tree_element(object, T::get_name(), Some(index), T::get_description(), inspectables, ui);
+            }
         });
     }
 }
@@ -459,5 +471,93 @@ impl<T: PartialEq> PartialEq for GlobalStagedefObject<T> {
         let guard = self.object.lock().unwrap();
         let other_guard = other.object.lock().unwrap();
         guard.eq(&other_guard)
+    }
+}
+
+const GOAL_SIZE: u32 = 0x14;
+const WORMHOLE_SIZE: u32 = 0x1c;
+const ALTMODEL_SIZE: u32 = 0x38;
+const LEVELMODEL_PTR_A_SIZE: u32 = 0xC;
+const REFLECTIVE_MODEL_SIZE: u32 = 0xC;
+const LEVEL_MODEL_INSTANCE_SIZE: u32 = 0x24;
+const COLLISION_TRIANGLE_SIZE: u32 = 0x40;
+const FILE_HEADER_SIZE: u32 = 0x89C;
+const COLLISION_HEADER_SIZE: u32 = 0x49C;
+const LEVELMODEL_PTR_B_SIZE: u32 = 0x4;
+const START_POS_SIZE: u32 = 0x14;
+const FALLOUT_POS_SIZE: u32 = 0x4;
+const FOG_ANIMATION_HEADER_SIZE: u32 = 0x30;
+const FOG_HEADER_SIZE: u32 = 0x24;
+const MYSTERY_3_SIZE: u32 = 0x24;
+const ALT_MODEL_ANIM_HEADER_TYPE1_SIZE: u32 = 0x50;
+const ALT_MODEL_ANIM_HEADER_TYPE2_SIZE: u32 = 0x60;
+const EFFECT_HEADER_SIZE: u32 = 0x30;
+const TEXTURE_SCROLL_SIZE: u32 = 0x8;
+const LEVEL_MODEL_SIZE: u32 = 0x10;
+const COLLISION_TRIANGLE_LIST_PTR_SIZE: u32 = 0x4;
+const MYSTERY_5_SIZE: u32 = 0x14;
+const FILE_HEADER_SIZE_SMB1: u32 = 0xA0;
+const LEVELMODEL_PTR_A_SIZE_SMB1: u32 = 0xC;
+const REFLECTIVE_MODEL_SIZE_SMB1: u32 = 0x8;
+const LEVEL_MODEL_SIZE_SMB1: u32 = 0x4;
+const ANIMATION_HEADER_SIZE: u32 = 0x40;
+const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
+
+/// Provides a method for returning the file size of an object in a [``StageDef``].
+pub trait StageDefObject {
+    fn get_size() -> u32;
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb + ReadBytesExt + Read;
+    fn get_name() -> &'static str;
+    fn get_description() -> &'static str;
+}
+
+impl StageDefObject for CollisionHeader {
+    fn get_size() -> u32 {
+        COLLISION_HEADER_SIZE
+    }
+    // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
+    // instead
+    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self> {
+        unimplemented!();
+    }
+    fn get_name() -> &'static str {
+        "Collision Header"
+    }
+    fn get_description() -> &'static str {
+        "A collision header."
+    }
+}
+
+impl StageDefObject for Goal {
+    fn get_size() -> u32 {
+        GOAL_SIZE
+    }
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb + ReadBytesExt + Read,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+
+        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
+        reader.read_u8()?;
+
+        Ok(Goal {
+            position,
+            rotation,
+            goal_type,
+        })
+    }
+    fn get_name() -> &'static str {
+        "Goal"
+    }
+    fn get_description() -> &'static str {
+        "A goal object. The collision for goals is hardcoded."
     }
 }

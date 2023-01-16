@@ -49,7 +49,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
 }
 
 /// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
-trait ReadBytesExtSmb {
+pub trait ReadBytesExtSmb {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
@@ -81,9 +81,13 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
 
     fn read_count_offset<U: ByteOrder>(&mut self) -> Result<FileOffset> {
         let count = self.read_u32::<U>()?;
-        let offset = from_start(self.read_u32::<U>()?);
+        let offset = self.read_u32::<U>()?;
 
-        Ok(FileOffset::CountOffset(count, offset))
+        if count == 0 || offset == 0 {
+            Ok(FileOffset::Unused)
+        } else {
+            Ok(FileOffset::CountOffset(count, from_start(offset)))
+        }
     }
 }
 
@@ -98,80 +102,6 @@ impl<T: Seek> SeekExtSmb for T {
             FileOffset::Unused => Err(io::Error::new(io::ErrorKind::Other, "Attempted to seek to an unused value")),
             FileOffset::OffsetOnly(o) | FileOffset::CountOffset(_, o) => self.seek(o),
         }
-    }
-}
-
-const GOAL_SIZE: u32 = 0x14;
-const WORMHOLE_SIZE: u32 = 0x1c;
-const ALTMODEL_SIZE: u32 = 0x38;
-const LEVELMODEL_PTR_A_SIZE: u32 = 0xC;
-const REFLECTIVE_MODEL_SIZE: u32 = 0xC;
-const LEVEL_MODEL_INSTANCE_SIZE: u32 = 0x24;
-const COLLISION_TRIANGLE_SIZE: u32 = 0x40;
-const FILE_HEADER_SIZE: u32 = 0x89C;
-const COLLISION_HEADER_SIZE: u32 = 0x49C;
-const LEVELMODEL_PTR_B_SIZE: u32 = 0x4;
-const START_POS_SIZE: u32 = 0x14;
-const FALLOUT_POS_SIZE: u32 = 0x4;
-const FOG_ANIMATION_HEADER_SIZE: u32 = 0x30;
-const FOG_HEADER_SIZE: u32 = 0x24;
-const MYSTERY_3_SIZE: u32 = 0x24;
-const ALT_MODEL_ANIM_HEADER_TYPE1_SIZE: u32 = 0x50;
-const ALT_MODEL_ANIM_HEADER_TYPE2_SIZE: u32 = 0x60;
-const EFFECT_HEADER_SIZE: u32 = 0x30;
-const TEXTURE_SCROLL_SIZE: u32 = 0x8;
-const LEVEL_MODEL_SIZE: u32 = 0x10;
-const COLLISION_TRIANGLE_LIST_PTR_SIZE: u32 = 0x4;
-const MYSTERY_5_SIZE: u32 = 0x14;
-const FILE_HEADER_SIZE_SMB1: u32 = 0xA0;
-const LEVELMODEL_PTR_A_SIZE_SMB1: u32 = 0xC;
-const REFLECTIVE_MODEL_SIZE_SMB1: u32 = 0x8;
-const LEVEL_MODEL_SIZE_SMB1: u32 = 0x4;
-const ANIMATION_HEADER_SIZE: u32 = 0x40;
-const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
-
-/// Provides a method for returning the file size of an object in a [``StageDef``].
-trait StageDefIO {
-    fn size() -> u32;
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb + ReadBytesExt + Read;
-}
-
-impl StageDefIO for CollisionHeader {
-    fn size() -> u32 {
-        COLLISION_HEADER_SIZE
-    }
-    // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
-    // instead
-    fn try_from_reader<R, B>(_reader: &mut R) -> Result<Self> {
-        unimplemented!();
-    }
-}
-
-impl StageDefIO for Goal {
-    fn size() -> u32 {
-        GOAL_SIZE
-    }
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb + ReadBytesExt + Read,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-
-        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
-        reader.read_u8()?;
-
-        Ok(Goal {
-            position,
-            rotation,
-            goal_type,
-        })
     }
 }
 
@@ -398,7 +328,7 @@ impl<R: Read + Seek> StageDefReader<R> {
         // TODO: Change based on game
         if let FileOffset::CountOffset(c, o) = self.file_header.collision_header_list_offset {
             for i in 0..c {
-                let current_offset = from_relative(o, CollisionHeader::size() * i);
+                let current_offset = from_relative(o, CollisionHeader::get_size() * i);
                 self.reader.seek(current_offset)?;
 
                 stagedef
@@ -557,7 +487,8 @@ impl<R: Read + Seek> StageDefReader<R> {
         Ok(collision_header)
     }
 
-    fn read_stagedef_list<B: ByteOrder, T: StageDefIO>(
+    /// Read a global stagedef object list
+    fn read_stagedef_list<B: ByteOrder, T: StageDefObject>(
         &mut self,
         offset: FileOffset,
     ) -> Result<Vec<GlobalStagedefObject<T>>> {
@@ -573,7 +504,11 @@ impl<R: Read + Seek> StageDefReader<R> {
         }
     }
 
-    fn read_local_object_list<B: ByteOrder, T: StageDefIO>(
+    /// Return all objects found within a local stagedef list
+    ///
+    /// This is often a subset of a global list, so we pass the relevant global list to this
+    /// function in order to determine which objects we should return.
+    fn read_local_object_list<B: ByteOrder, T: StageDefObject>(
         &mut self,
         offset: FileOffset,
         global_list_offset: FileOffset,
@@ -585,21 +520,23 @@ impl<R: Read + Seek> StageDefReader<R> {
                 self.reader.seek(local_offset)?;
 
                 // Attempt to get objects from global list and re-adjust indices for our local list
-                let vec = match Self::get_global_indices(local_count, &local_offset, &global_list_offset, global_list) {
+                let vec = match Self::get_global_objects(local_count, &local_offset, &global_list_offset, global_list) {
                     Some(objs) => objs,
                     None => self.read_stagedef_list::<B, T>(local_count_offset)?,
                 };
 
                 Ok(vec)
             } else {
-                Err(anyhow::Error::msg("No object list was read"))
+                Err(anyhow::Error::msg("No object list was read - no local offset"))
             }
         } else {
-            Err(anyhow::Error::msg("No object list was read"))
+            Err(anyhow::Error::msg("No object list was read - could not seek to given offset"))
         }
     }
 
-    fn get_global_indices<T: StageDefIO>(
+    /// Return the intersection between a local and global stagedef object list, or ``None`` if no
+    /// overlap exists.
+    fn get_global_objects<T: StageDefObject>(
         local_count: u32,
         local_offset: &SeekFrom,
         global_co: &FileOffset,
@@ -611,10 +548,10 @@ impl<R: Read + Seek> StageDefReader<R> {
             if let Ok(diff) = try_get_offset_difference(local_offset, global_offset) {
                 // The difference isn't negative, so the object(s) is likely to be in or after the
                 // global list
-                let global_size = global_count * T::size();
+                let global_size = global_count * T::get_size();
                 // The difference is within the bounds of the list
                 if diff < global_size {
-                    let start_index = diff / T::size();
+                    let start_index = diff / T::get_size();
                     let mut local_reindex_value = 0;
                     let matching_global_objs: Vec<GlobalStagedefObject<T>> = global_obj_list
                         .iter()
