@@ -49,7 +49,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
 }
 
 /// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
-trait ReadBytesExtSmb : ReadBytesExt {
+trait ReadBytesExtSmb: ReadBytesExt {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
@@ -117,13 +117,12 @@ enum FileOffset {
     CountOffset(u32, SeekFrom),
 }
 
-
-trait StageDefParsable : StageDefObject {
+trait StageDefParsable: StageDefObject {
     fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-        where
-            Self: Sized,
-            B: ByteOrder,
-            R: ReadBytesExtSmb;
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb;
 }
 
 impl StageDefParsable for Goal {
@@ -136,13 +135,156 @@ impl StageDefParsable for Goal {
         let position = reader.read_vec3::<B>()?;
         let rotation = reader.read_vec3_short::<B>()?;
 
-        let goal_type: GoalType = FromPrimitive::from_u8(reader.read_u8()?).unwrap_or_default();
+        let goal_type: GoalType =
+            FromPrimitive::from_u8(reader.read_u8()?).ok_or_else(|| anyhow::Error::msg("Failed to parse goal type"))?;
         reader.read_u8()?;
 
-        Ok(Goal {
+        Ok(Self {
             position,
             rotation,
             goal_type,
+        })
+    }
+}
+
+impl StageDefParsable for Bumper {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        reader.read_u8()?;
+        let scale = reader.read_vec3::<B>()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            scale,
+        })
+    }
+}
+
+impl StageDefParsable for Jamabar {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        reader.read_u8()?;
+        let scale = reader.read_vec3::<B>()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            scale,
+        })
+    }
+}
+
+impl StageDefParsable for Banana {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let banana_type: BananaType =
+            FromPrimitive::from_u8(reader.read_u8()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
+        Ok(Self { position, banana_type })
+    }
+}
+
+impl StageDefParsable for ConeCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        reader.read_u8()?;
+
+        let radius_1 = reader.read_f32::<B>()?;
+        let height = reader.read_f32::<B>()?;
+        let radius_2 = reader.read_f32::<B>()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            radius_1,
+            height,
+            radius_2,
+        })
+    }
+}
+
+impl StageDefParsable for SphereCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let radius = reader.read_f32::<B>()?;
+        let unk0x10 = reader.read_u32::<B>()?;
+
+        Ok(Self {
+            position,
+            radius,
+            unk0x10,
+        })
+    }
+}
+
+impl StageDefParsable for CylinderCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let radius = reader.read_f32::<B>()?;
+        let height = reader.read_f32::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        let unk0x1a = reader.read_u16::<B>()?;
+
+        Ok(Self {
+            position,
+            radius,
+            height,
+            rotation,
+            unk0x1a,
+        })
+    }
+}
+
+impl StageDefParsable for FalloutVolume {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let size = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        let unk0x1e = reader.read_u16::<B>()?;
+
+        Ok(Self {
+            position,
+            size,
+            rotation,
+            unk0x1e,
         })
     }
 }
@@ -353,6 +495,41 @@ impl<R: Read + Seek> StageDefReader<R> {
             stagedef.goals = goals;
         }
 
+        // Read bumper list
+        if let Ok(bumpers) = self.read_stagedef_list::<B, Bumper>(self.file_header.bumper_list_offset) {
+            stagedef.bumpers = bumpers;
+        }
+
+        // Read jamabar list
+        if let Ok(jamabars) = self.read_stagedef_list::<B, Jamabar>(self.file_header.jamabar_list_offset) {
+            stagedef.jamabars = jamabars;
+        }
+
+        // Read banana list
+        if let Ok(bananas) = self.read_stagedef_list::<B, Banana>(self.file_header.banana_list_offset) {
+            stagedef.bananas = bananas;
+        }
+
+        // Read cone_col list
+        if let Ok(cone_cols) = self.read_stagedef_list::<B, ConeCollisionObject>(self.file_header.cone_col_list_offset) {
+            stagedef.cone_collision_objects = cone_cols;
+        }
+
+        // Read sphere_col list
+        if let Ok(sphere_cols) = self.read_stagedef_list::<B, SphereCollisionObject>(self.file_header.sphere_col_list_offset) {
+            stagedef.sphere_collision_objects = sphere_cols;
+        }
+
+        // Read cyl_col list
+        if let Ok(cyl_cols) = self.read_stagedef_list::<B, CylinderCollisionObject>(self.file_header.cyl_col_list_offset) {
+            stagedef.cylinder_collision_objects = cyl_cols;
+        }
+
+        // Read fallout_vol list
+        if let Ok(fallout_vols) = self.read_stagedef_list::<B, FalloutVolume>(self.file_header.fallout_vol_list_offset) {
+            stagedef.fallout_volumes = fallout_vols;
+        }
+
         // Read all collision headers - done last so we can properly set up references to other global
         // stagedef objects
         // TODO: Change based on game
@@ -514,6 +691,69 @@ impl<R: Read + Seek> StageDefReader<R> {
             collision_header.goals = goals;
         }
 
+        // Read bumpers
+        if let Ok(bumpers) = self.read_local_object_list::<B, Bumper>(
+            current_format.bumper_list_offset,
+            self.file_header.bumper_list_offset,
+            &stagedef.bumpers,
+        ) {
+            collision_header.bumpers = bumpers;
+        }
+
+        // Read jamabars
+        if let Ok(jamabars) = self.read_local_object_list::<B, Jamabar>(
+            current_format.jamabar_list_offset,
+            self.file_header.jamabar_list_offset,
+            &stagedef.jamabars,
+        ) {
+            collision_header.jamabars = jamabars;
+        }
+
+        // Read bananas
+        if let Ok(bananas) = self.read_local_object_list::<B, Banana>(
+            current_format.banana_list_offset,
+            self.file_header.banana_list_offset,
+            &stagedef.bananas,
+        ) {
+            collision_header.bananas = bananas;
+        }
+
+        // Read cone_collision_objects
+        if let Ok(cone_collision_objects) = self.read_local_object_list::<B, ConeCollisionObject>(
+            current_format.cone_col_list_offset,
+            self.file_header.cone_col_list_offset,
+            &stagedef.cone_collision_objects,
+        ) {
+            collision_header.cone_collision_objects = cone_collision_objects;
+        }
+
+        // Read sphere_collision_objects
+        if let Ok(sphere_collision_objects) = self.read_local_object_list::<B, SphereCollisionObject>(
+            current_format.sphere_col_list_offset,
+            self.file_header.sphere_col_list_offset,
+            &stagedef.sphere_collision_objects,
+        ) {
+            collision_header.sphere_collision_objects = sphere_collision_objects;
+        }
+
+        // Read cylinder_collision_objects
+        if let Ok(cylinder_collision_objects) = self.read_local_object_list::<B, CylinderCollisionObject>(
+            current_format.cyl_col_list_offset,
+            self.file_header.cyl_col_list_offset,
+            &stagedef.cylinder_collision_objects,
+        ) {
+            collision_header.cylinder_collision_objects = cylinder_collision_objects;
+        }
+
+        // Read fallout_volumes
+        if let Ok(fallout_volumes) = self.read_local_object_list::<B, FalloutVolume>(
+            current_format.fallout_vol_list_offset,
+            self.file_header.fallout_vol_list_offset,
+            &stagedef.fallout_volumes,
+        ) {
+            collision_header.fallout_volumes = fallout_volumes;
+        }
+
         Ok(collision_header)
     }
 
@@ -599,8 +839,8 @@ impl<R: Read + Seek> StageDefReader<R> {
                 // the global list
                 else {
                     debug!(
-                        "Failed global object retrieval: local list of size {:} larger than global list of size {:}",
-                        diff, global_size
+                        "Failed global object retrieval for type {}: local list of size {:} larger than global list of size {:}",
+                        T::get_name(), diff, global_size
                     );
                     None
                 }
@@ -608,13 +848,13 @@ impl<R: Read + Seek> StageDefReader<R> {
             // The difference is negative, so the object(s) is before the global list for some
             // reason
             else {
-                debug!("Failed global object retrieval: objects before list");
+                debug!("Failed global object retrieval for type {}: objects before list", T::get_name());
                 None
             }
         }
         // There is no global list
         else {
-            debug!("Failed global object retrieval: no global list");
+            debug!("Failed global object retrieval for type {}: no global list", T::get_name());
             None
         }
     }

@@ -154,6 +154,13 @@ impl StageDefInstanceUiState {
             );
 
             self.display_tree_stagedef_object(ui, &mut stagedef.goals, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.bumpers, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.jamabars, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.bananas, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.cone_collision_objects, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.sphere_collision_objects, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.cylinder_collision_objects, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.fallout_volumes, inspectables);
 
             egui::CollapsingHeader::new(format!("Collision Headers ({})", stagedef.collision_headers.len())).show(
                 ui,
@@ -161,6 +168,13 @@ impl StageDefInstanceUiState {
                     for (col_header_idx, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
                         egui::CollapsingHeader::new(format!("Collision Header #{}", col_header_idx + 1)).show(ui, |ui| {
                             self.display_tree_stagedef_object(ui, &mut col_header.goals, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.bumpers, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.jamabars, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.bananas, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.cone_collision_objects, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.sphere_collision_objects, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.cylinder_collision_objects, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.fallout_volumes, inspectables);
                         });
                     }
                 },
@@ -168,12 +182,14 @@ impl StageDefInstanceUiState {
         });
     }
 
-    fn display_tree_stagedef_object<'a, T: StageDefObject + EguiInspect + Display + 'a>(
+    fn display_tree_stagedef_object<'a, T>(
         &mut self,
         ui: &mut Ui,
         objects: &'a mut Vec<GlobalStagedefObject<T>>,
         inspectables: &mut Vec<Inspectable<'a>>,
-    ) {
+    ) where
+        T: StageDefObject + EguiInspect + Display + 'a,
+    {
         let header_title = format!("{}s ({})", T::get_name(), objects.len());
         egui::CollapsingHeader::new(header_title).show(ui, |ui| {
             for (index, object) in objects.iter_mut().enumerate() {
@@ -273,7 +289,7 @@ pub enum GoalType {
 }
 
 impl EguiInspect for GoalType {
-    fn inspect(&self, label: &str, ui: &mut egui::Ui) {
+    fn inspect(&self, _label: &str, _ui: &mut egui::Ui) {
         unimplemented!();
     }
 
@@ -288,9 +304,33 @@ impl EguiInspect for GoalType {
     }
 }
 
+#[derive(PartialEq, FromPrimitive, ToPrimitive)]
 pub enum BananaType {
-    Single,
-    Bunch,
+    Single = 0x0,
+    Bunch = 0x1,
+}
+
+impl Display for BananaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BananaType::Single => write!(f, "Single"),
+            BananaType::Bunch => write!(f, "Bunch")
+        }
+    }
+}
+
+impl EguiInspect for BananaType {
+    fn inspect(&self, _label: &str, _ui: &mut egui::Ui) {
+        unimplemented!();
+    }
+    fn inspect_mut(&mut self, label: &str, ui: &mut egui::Ui) {
+        egui::ComboBox::from_label(label)
+            .selected_text(format!("{self:}"))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(self, BananaType::Single, "Single");
+                ui.selectable_value(self, BananaType::Bunch, "Bunch");
+            });
+    }
 }
 
 pub struct CollisionTriangle {
@@ -309,6 +349,13 @@ pub struct CollisionTriangle {
 
 pub struct Animation {}
 
+/// Provides a method for returning the file size of an object in a [``StageDef``].
+pub trait StageDefObject {
+    fn get_name() -> &'static str;
+    fn get_description() -> &'static str;
+    fn get_size() -> u32;
+}
+
 #[derive(Default, Debug, PartialEq, EguiInspect)]
 pub struct Goal {
     #[inspect(name = "Position")]
@@ -325,23 +372,93 @@ impl Display for Goal {
     }
 }
 
+impl StageDefObject for Goal {
+    fn get_name() -> &'static str {
+        "Goal"
+    }
+    fn get_description() -> &'static str {
+        "A goal object. The collision for goals is hardcoded."
+    }
+    fn get_size() -> u32 {
+        GOAL_SIZE
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct Bumper {
     pub position: Vector3,
     pub rotation: ShortVector3,
     pub scale: Vector3,
 }
 
+impl StageDefObject for Bumper {
+    fn get_name() -> &'static str {
+        "Bumper"
+    }
+    fn get_description() -> &'static str {
+        "A bumper."
+    }
+    fn get_size() -> u32 {
+        BUMPER_SIZE
+    }
+}
+
+impl Display for Bumper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct Jamabar {
     pub position: Vector3,
     pub rotation: ShortVector3,
     pub scale: Vector3,
 }
 
+impl StageDefObject for Jamabar {
+    fn get_name() -> &'static str {
+        "Jamabar"
+    }
+    fn get_description() -> &'static str {
+        "A jamabar - rectangular prisms that tilt on a fixed axis depending on the stage tilt."
+    }
+    fn get_size() -> u32 {
+        JAMABAR_SIZE
+    }
+}
+
+impl Display for Jamabar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct Banana {
     pub position: Vector3,
     pub banana_type: BananaType,
 }
 
+impl StageDefObject for Banana {
+    fn get_name() -> &'static str {
+        "Banana"
+    }
+    fn get_description() -> &'static str {
+        "A banana object. Can also be a banana bunch."
+    }
+    fn get_size() -> u32 {
+        BANANA_SIZE
+    }
+}
+
+impl Display for Banana {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.banana_type, self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct ConeCollisionObject {
     pub position: Vector3,
     pub rotation: ShortVector3,
@@ -350,12 +467,50 @@ pub struct ConeCollisionObject {
     pub radius_2: f32,
 }
 
+impl StageDefObject for ConeCollisionObject {
+    fn get_name() -> &'static str {
+        "Cone Collision"
+    }
+    fn get_description() -> &'static str {
+        "A conical region that the ball can collide with. Used for efficiently calculating collision against cone-shaped objects."
+    }
+    fn get_size() -> u32 {
+        CONE_COL_SIZE
+    }
+}
+
+impl Display for ConeCollisionObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct SphereCollisionObject {
     pub position: Vector3,
     pub radius: f32,
     pub unk0x10: u32,
 }
 
+impl StageDefObject for SphereCollisionObject {
+    fn get_name() -> &'static str {
+        "Sphere Collision"
+    }
+    fn get_description() -> &'static str {
+        "A spherical region that the ball can collide with. Used for efficiently calculating collision against sphere-shaped objects."
+    }
+    fn get_size() -> u32 {
+        SPHERE_COL_SIZE
+    }
+}
+
+impl Display for SphereCollisionObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct CylinderCollisionObject {
     pub position: Vector3,
     pub radius: f32,
@@ -364,6 +519,25 @@ pub struct CylinderCollisionObject {
     pub unk0x1a: u16,
 }
 
+impl StageDefObject for CylinderCollisionObject {
+    fn get_name() -> &'static str {
+        "Cylinder Collision"
+    }
+    fn get_description() -> &'static str {
+        "A cylindrical region that the ball can collide with. Used for efficiently calculating collision against cylinder-shaped objects."
+    }
+    fn get_size() -> u32 {
+        CYL_COL_SIZE
+    }
+}
+
+impl Display for CylinderCollisionObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(EguiInspect)]
 pub struct FalloutVolume {
     pub position: Vector3,
     pub size: Vector3,
@@ -371,7 +545,25 @@ pub struct FalloutVolume {
     pub unk0x1e: u16,
 }
 
-#[derive(Default, Debug)]
+impl StageDefObject for FalloutVolume {
+    fn get_name() -> &'static str {
+        "Fallout Volume"
+    }
+    fn get_description() -> &'static str {
+        "A volume that causes a fall out when the ball is within the volume."
+    }
+    fn get_size() -> u32 {
+        FALLOUT_VOLUME_SIZE
+    }
+}
+
+impl Display for FalloutVolume {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.position)
+    }
+}
+
+#[derive(Default)]
 pub struct CollisionHeader {
     pub center_of_rotation_position: Vector3,
     pub conveyor_vector: Vector3,
@@ -399,14 +591,27 @@ pub struct CollisionHeader {
     pub unk0xd0: u32,
     pub unk0xa6: u16,*/
     pub goals: Vec<GlobalStagedefObject<Goal>>,
-    /*
-    pub bumpers: Vec<&Bumper>,
-    pub jamabars: Vec<&Jamabar>,
-    pub bananas: Vec<&Banana>,
-    pub cone_collision_objects: Vec<&ConeCollisionObject>,
-    pub sphere_collision_objects: Vec<&SphereCollisionObject>,
-    pub cylinder_collision_objects: Vec<&CylinderCollisionObject>,
-    pub fallout_volumes: Vec<&FalloutVolume>,*/
+    pub bumpers: Vec<GlobalStagedefObject<Bumper>>,
+    pub jamabars: Vec<GlobalStagedefObject<Jamabar>>,
+    pub bananas: Vec<GlobalStagedefObject<Banana>>,
+    pub cone_collision_objects: Vec<GlobalStagedefObject<ConeCollisionObject>>,
+    pub sphere_collision_objects: Vec<GlobalStagedefObject<SphereCollisionObject>>,
+    pub cylinder_collision_objects: Vec<GlobalStagedefObject<CylinderCollisionObject>>,
+    pub fallout_volumes: Vec<GlobalStagedefObject<FalloutVolume>>,
+}
+
+impl StageDefObject for CollisionHeader {
+    // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
+    // instead
+    fn get_name() -> &'static str {
+        "Collision Header"
+    }
+    fn get_description() -> &'static str {
+        "A collision header."
+    }
+    fn get_size() -> u32 {
+        COLLISION_HEADER_SIZE
+    }
 }
 
 #[derive(Default)]
@@ -420,7 +625,15 @@ pub struct StageDef {
     pub fallout_level: f32,
 
     pub collision_headers: Vec<CollisionHeader>,
+
     pub goals: Vec<GlobalStagedefObject<Goal>>,
+    pub bumpers: Vec<GlobalStagedefObject<Bumper>>,
+    pub jamabars: Vec<GlobalStagedefObject<Jamabar>>,
+    pub bananas: Vec<GlobalStagedefObject<Banana>>,
+    pub cone_collision_objects: Vec<GlobalStagedefObject<ConeCollisionObject>>,
+    pub sphere_collision_objects: Vec<GlobalStagedefObject<SphereCollisionObject>>,
+    pub cylinder_collision_objects: Vec<GlobalStagedefObject<CylinderCollisionObject>>,
+    pub fallout_volumes: Vec<GlobalStagedefObject<FalloutVolume>>,
 }
 
 #[derive(Debug)]
@@ -474,6 +687,13 @@ impl<T: PartialEq> PartialEq for GlobalStagedefObject<T> {
 }
 
 const GOAL_SIZE: u32 = 0x14;
+const BUMPER_SIZE: u32 = 0x20;
+const JAMABAR_SIZE: u32 = 0x20;
+const BANANA_SIZE: u32 = 0x10;
+const CONE_COL_SIZE: u32 = 0x20;
+const SPHERE_COL_SIZE: u32 = 0x14;
+const CYL_COL_SIZE: u32 = 0x1C;
+const FALLOUT_VOLUME_SIZE: u32 = 0x20;
 const WORMHOLE_SIZE: u32 = 0x1c;
 const ALTMODEL_SIZE: u32 = 0x38;
 const LEVELMODEL_PTR_A_SIZE: u32 = 0xC;
@@ -501,37 +721,3 @@ const REFLECTIVE_MODEL_SIZE_SMB1: u32 = 0x8;
 const LEVEL_MODEL_SIZE_SMB1: u32 = 0x4;
 const ANIMATION_HEADER_SIZE: u32 = 0x40;
 const ALT_ANIMATION_TYPE2_SIZE: u32 = 0x60;
-
-/// Provides a method for returning the file size of an object in a [``StageDef``].
-pub trait StageDefObject {
-    fn get_name() -> &'static str;
-    fn get_description() -> &'static str;
-    fn get_size() -> u32;
-}
-
-impl StageDefObject for CollisionHeader {
-    // Collision headers refer back to global stagedef lists, so we handle this in a StageDefReader
-    // instead
-    fn get_name() -> &'static str {
-        "Collision Header"
-    }
-    fn get_description() -> &'static str {
-        "A collision header."
-    }
-    fn get_size() -> u32 {
-        COLLISION_HEADER_SIZE
-    }
-}
-
-impl StageDefObject for Goal {
-    fn get_name() -> &'static str {
-        "Goal"
-    }
-    fn get_description() -> &'static str {
-        "A goal object. The collision for goals is hardcoded."
-    }
-    fn get_size() -> u32 {
-        GOAL_SIZE
-    }
-}
-
