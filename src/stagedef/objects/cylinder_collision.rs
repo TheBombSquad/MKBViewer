@@ -3,7 +3,7 @@ use super::super::common::*;
 const CYL_COL_SIZE: u32 = 0x1C;
 
 #[derive(EguiInspect)]
-pub struct CylinderCollisionObject {
+pub struct CylinderCollision {
     pub position: Vector3,
     pub radius: f32,
     pub height: f32,
@@ -11,7 +11,7 @@ pub struct CylinderCollisionObject {
     pub unk0x1a: u16,
 }
 
-impl StageDefObject for CylinderCollisionObject {
+impl StageDefObject for CylinderCollision {
     fn get_name() -> &'static str {
         "Cylinder Collision"
     }
@@ -23,13 +23,13 @@ impl StageDefObject for CylinderCollisionObject {
     }
 }
 
-impl Display for CylinderCollisionObject {
+impl Display for CylinderCollision {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.position)
     }
 }
 
-impl StageDefParsable for CylinderCollisionObject {
+impl StageDefParsable for CylinderCollision {
     fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
     where
         Self: Sized,

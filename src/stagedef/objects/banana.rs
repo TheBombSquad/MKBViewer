@@ -36,7 +36,7 @@ impl Display for BananaType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BananaType::Single => write!(f, "Single"),
-            BananaType::Bunch => write!(f, "Bunch")
+            BananaType::Bunch => write!(f, "Bunch"),
         }
     }
 }
@@ -63,8 +63,8 @@ impl StageDefParsable for Banana {
         R: ReadBytesExtSmb,
     {
         let position = reader.read_vec3::<B>()?;
-        let banana_type: BananaType =
-            FromPrimitive::from_u32(reader.read_u32::<B>()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
+        let banana_type: BananaType = FromPrimitive::from_u32(reader.read_u32::<B>()?)
+            .ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
         Ok(Self { position, banana_type })
     }
 }

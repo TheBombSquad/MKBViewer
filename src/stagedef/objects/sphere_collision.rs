@@ -3,13 +3,13 @@ use super::super::common::*;
 const SPHERE_COL_SIZE: u32 = 0x14;
 
 #[derive(EguiInspect)]
-pub struct SphereCollisionObject {
+pub struct SphereCollision {
     pub position: Vector3,
     pub radius: f32,
     pub unk0x10: u32,
 }
 
-impl StageDefObject for SphereCollisionObject {
+impl StageDefObject for SphereCollision {
     fn get_name() -> &'static str {
         "Sphere Collision"
     }
@@ -21,13 +21,13 @@ impl StageDefObject for SphereCollisionObject {
     }
 }
 
-impl Display for SphereCollisionObject {
+impl Display for SphereCollision {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.position)
     }
 }
 
-impl StageDefParsable for SphereCollisionObject {
+impl StageDefParsable for SphereCollision {
     fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -45,4 +45,3 @@ impl StageDefParsable for SphereCollisionObject {
         })
     }
 }
-

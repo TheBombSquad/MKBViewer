@@ -1,11 +1,11 @@
 pub use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
+pub use super::parser::ReadBytesExtSmb;
 pub use anyhow::Result;
 pub use byteorder::ByteOrder;
 pub use egui_inspect::EguiInspect;
 pub use num_traits::FromPrimitive;
-pub use super::parser::ReadBytesExtSmb;
 
 use super::objects::*;
 
@@ -25,9 +25,9 @@ pub struct StageDef {
     pub bumpers: Vec<GlobalStagedefObject<Bumper>>,
     pub jamabars: Vec<GlobalStagedefObject<Jamabar>>,
     pub bananas: Vec<GlobalStagedefObject<Banana>>,
-    pub cone_collision_objects: Vec<GlobalStagedefObject<ConeCollisionObject>>,
-    pub sphere_collision_objects: Vec<GlobalStagedefObject<SphereCollisionObject>>,
-    pub cylinder_collision_objects: Vec<GlobalStagedefObject<CylinderCollisionObject>>,
+    pub cone_collisions: Vec<GlobalStagedefObject<ConeCollision>>,
+    pub sphere_collisions: Vec<GlobalStagedefObject<SphereCollision>>,
+    pub cylinder_collisions: Vec<GlobalStagedefObject<CylinderCollision>>,
     pub fallout_volumes: Vec<GlobalStagedefObject<FalloutVolume>>,
 }
 
@@ -160,4 +160,3 @@ pub enum Endianness {
     BigEndian,
     LittleEndian,
 }
-

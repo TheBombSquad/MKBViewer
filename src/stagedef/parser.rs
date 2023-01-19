@@ -1,5 +1,7 @@
 //! Handles parsing of an uncompressed Monkey Ball stage binary.
-use crate::stagedef::common::{Vector3, ShortVector3, StageDefObject, Game, StageDef, GlobalStagedefObject, StageDefParsable};
+use crate::stagedef::common::{
+    Game, GlobalStagedefObject, ShortVector3, StageDef, StageDefObject, StageDefParsable, Vector3,
+};
 use crate::stagedef::objects::*;
 use anyhow::Result;
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
@@ -9,7 +11,6 @@ use std::{
     io::{self, BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write},
 };
 use tracing::{debug, event, warn, Level};
-
 
 /// Helper function that returns a new [``SeekFrom::Start``] from the given [``u32``] offset.
 ///
@@ -52,7 +53,7 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
 
 /// Defines possible file offset types within a [``StageDef``].
 #[derive(Default, Clone, Copy, Debug)]
-enum FileOffset {
+pub enum FileOffset {
     /// The offset, or the structure it refers to, does not exist in this format. Nothing will be read.
     #[default]
     Unused,
@@ -341,18 +342,18 @@ impl<R: Read + Seek> StageDefReader<R> {
         }
 
         // Read cone_col list
-        if let Ok(cone_cols) = self.read_stagedef_list::<B, ConeCollisionObject>(self.file_header.cone_col_list_offset) {
-            stagedef.cone_collision_objects = cone_cols;
+        if let Ok(cone_cols) = self.read_stagedef_list::<B, ConeCollision>(self.file_header.cone_col_list_offset) {
+            stagedef.cone_collisions = cone_cols;
         }
 
         // Read sphere_col list
-        if let Ok(sphere_cols) = self.read_stagedef_list::<B, SphereCollisionObject>(self.file_header.sphere_col_list_offset) {
-            stagedef.sphere_collision_objects = sphere_cols;
+        if let Ok(sphere_cols) = self.read_stagedef_list::<B, SphereCollision>(self.file_header.sphere_col_list_offset) {
+            stagedef.sphere_collisions = sphere_cols;
         }
 
         // Read cyl_col list
-        if let Ok(cyl_cols) = self.read_stagedef_list::<B, CylinderCollisionObject>(self.file_header.cyl_col_list_offset) {
-            stagedef.cylinder_collision_objects = cyl_cols;
+        if let Ok(cyl_cols) = self.read_stagedef_list::<B, CylinderCollision>(self.file_header.cyl_col_list_offset) {
+            stagedef.cylinder_collisions = cyl_cols;
         }
 
         // Read fallout_vol list
@@ -548,31 +549,31 @@ impl<R: Read + Seek> StageDefReader<R> {
             collision_header.bananas = bananas;
         }
 
-        // Read cone_collision_objects
-        if let Ok(cone_collision_objects) = self.read_local_object_list::<B, ConeCollisionObject>(
+        // Read cone_collisions
+        if let Ok(cone_collisions) = self.read_local_object_list::<B, ConeCollision>(
             current_format.cone_col_list_offset,
             self.file_header.cone_col_list_offset,
-            &stagedef.cone_collision_objects,
+            &stagedef.cone_collisions,
         ) {
-            collision_header.cone_collision_objects = cone_collision_objects;
+            collision_header.cone_collisions = cone_collisions;
         }
 
-        // Read sphere_collision_objects
-        if let Ok(sphere_collision_objects) = self.read_local_object_list::<B, SphereCollisionObject>(
+        // Read sphere_collisions
+        if let Ok(sphere_collisions) = self.read_local_object_list::<B, SphereCollision>(
             current_format.sphere_col_list_offset,
             self.file_header.sphere_col_list_offset,
-            &stagedef.sphere_collision_objects,
+            &stagedef.sphere_collisions,
         ) {
-            collision_header.sphere_collision_objects = sphere_collision_objects;
+            collision_header.sphere_collisions = sphere_collisions;
         }
 
-        // Read cylinder_collision_objects
-        if let Ok(cylinder_collision_objects) = self.read_local_object_list::<B, CylinderCollisionObject>(
+        // Read cylinder_collisions
+        if let Ok(cylinder_collisions) = self.read_local_object_list::<B, CylinderCollision>(
             current_format.cyl_col_list_offset,
             self.file_header.cyl_col_list_offset,
-            &stagedef.cylinder_collision_objects,
+            &stagedef.cylinder_collisions,
         ) {
-            collision_header.cylinder_collision_objects = cylinder_collision_objects;
+            collision_header.cylinder_collisions = cylinder_collisions;
         }
 
         // Read fallout_volumes
@@ -596,7 +597,7 @@ impl<R: Read + Seek> StageDefReader<R> {
             let mut vec = Vec::new();
             self.reader.seek(o)?;
             for i in 0..c {
-                let read_obj = T::try_from_reader::<R, B>(&mut self.reader); 
+                let read_obj = T::try_from_reader::<R, B>(&mut self.reader);
 
                 match read_obj {
                     Ok(obj) => vec.push(GlobalStagedefObject::new(obj, i)),
@@ -685,7 +686,10 @@ impl<R: Read + Seek> StageDefReader<R> {
             // The difference is negative, so the object(s) is before the global list for some
             // reason
             else {
-                warn!("Failed global object retrieval for type {}: objects before list", T::get_name());
+                warn!(
+                    "Failed global object retrieval for type {}: objects before list",
+                    T::get_name()
+                );
                 None
             }
         }
@@ -771,35 +775,35 @@ mod test {
 
         // banana list
         cur.seek(from_start(0x8C8));
-		cur.write_uint::<T>(0x41500000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC2CC0000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0xC1500000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC2CC0000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0xC1500000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC3000000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0x41500000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC3000000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0x41900000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC2E60000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0xC1900000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC2E60000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0x3F99999A, 4)?;
-		cur.write_uint::<T>(0xC3050000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
-		cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x41500000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC2CC0000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0xC1500000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC2CC0000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0xC1500000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC3000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x41500000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC3000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x41900000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC2E60000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0xC1900000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC2E60000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x3F99999A, 4)?;
+        cur.write_uint::<T>(0xC3050000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
+        cur.write_uint::<T>(0x00000000, 4)?;
 
         cur.seek(from_start(0x1BFC))?;
 

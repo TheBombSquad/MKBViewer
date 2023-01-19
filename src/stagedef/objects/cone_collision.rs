@@ -3,7 +3,7 @@ use super::super::common::*;
 const CONE_COL_SIZE: u32 = 0x20;
 
 #[derive(EguiInspect)]
-pub struct ConeCollisionObject {
+pub struct ConeCollision {
     pub position: Vector3,
     pub rotation: ShortVector3,
     pub radius_1: f32,
@@ -11,7 +11,7 @@ pub struct ConeCollisionObject {
     pub radius_2: f32,
 }
 
-impl StageDefObject for ConeCollisionObject {
+impl StageDefObject for ConeCollision {
     fn get_name() -> &'static str {
         "Cone Collision"
     }
@@ -23,13 +23,13 @@ impl StageDefObject for ConeCollisionObject {
     }
 }
 
-impl Display for ConeCollisionObject {
+impl Display for ConeCollision {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.position)
     }
 }
 
-impl StageDefParsable for ConeCollisionObject {
+impl StageDefParsable for ConeCollision {
     fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -53,4 +53,3 @@ impl StageDefParsable for ConeCollisionObject {
         })
     }
 }
-

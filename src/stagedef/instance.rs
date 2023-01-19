@@ -1,10 +1,10 @@
+use super::common::*;
+use super::parser::StageDefReader;
+use super::ui_state::*;
+use crate::app::FileHandleWrapper;
 use anyhow::Result;
 use byteorder::BigEndian;
 use byteorder::LittleEndian;
-use crate::app::FileHandleWrapper;
-use super::parser::StageDefReader;
-use super::common::*;
-use super::ui_state::*;
 
 /// Contains a [``StageDef``], as well as extra information about the file
 ///

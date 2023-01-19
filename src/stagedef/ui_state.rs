@@ -1,6 +1,6 @@
-use std::collections::HashSet;
-use egui::{Id, Ui};
 use super::common::*;
+use egui::{Id, Ui};
+use std::collections::HashSet;
 
 type Inspectable<'a> = (&'a mut (dyn EguiInspect), String, &'static str);
 
@@ -96,9 +96,9 @@ impl StageDefInstanceUiState {
             self.display_tree_stagedef_object(ui, &mut stagedef.bumpers, inspectables);
             self.display_tree_stagedef_object(ui, &mut stagedef.jamabars, inspectables);
             self.display_tree_stagedef_object(ui, &mut stagedef.bananas, inspectables);
-            self.display_tree_stagedef_object(ui, &mut stagedef.cone_collision_objects, inspectables);
-            self.display_tree_stagedef_object(ui, &mut stagedef.sphere_collision_objects, inspectables);
-            self.display_tree_stagedef_object(ui, &mut stagedef.cylinder_collision_objects, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.cone_collisions, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.sphere_collisions, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.cylinder_collisions, inspectables);
             self.display_tree_stagedef_object(ui, &mut stagedef.fallout_volumes, inspectables);
 
             egui::CollapsingHeader::new(format!("Collision Headers ({})", stagedef.collision_headers.len())).show(
@@ -110,9 +110,9 @@ impl StageDefInstanceUiState {
                             self.display_tree_stagedef_object(ui, &mut col_header.bumpers, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.jamabars, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.bananas, inspectables);
-                            self.display_tree_stagedef_object(ui, &mut col_header.cone_collision_objects, inspectables);
-                            self.display_tree_stagedef_object(ui, &mut col_header.sphere_collision_objects, inspectables);
-                            self.display_tree_stagedef_object(ui, &mut col_header.cylinder_collision_objects, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.cone_collisions, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.sphere_collisions, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.cylinder_collisions, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.fallout_volumes, inspectables);
                         });
                     }
