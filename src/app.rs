@@ -1,6 +1,6 @@
 //! Handles all the UI-related activities
 use crate::renderer::{self, FrameInput};
-use crate::stagedef::{StageDef, StageDefInstance};
+use crate::stagedef::instance::StageDefInstance;
 use egui::style::Margin;
 use egui::{collapsing_header, vec2, Button, Frame, Label, Response, Vec2, Window};
 use egui::{CentralPanel, Separator, TopBottomPanel};
