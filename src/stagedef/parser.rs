@@ -656,16 +656,18 @@ impl<R: Read + Seek> StageDefReader<R> {
                 let global_size = global_count * T::get_size();
                 // The difference is within the bounds of the list
                 if diff < global_size {
-                    let start_index = diff / T::get_size();
+                    // Get the global starting index for the local list
+                    let global_start_index = diff / T::get_size();
                     let mut local_reindex_value = 0;
                     let matching_global_objs: Vec<GlobalStagedefObject<T>> = global_obj_list
                         .iter()
-                        .filter(|x| x.index >= start_index + (local_count - 1))
+                        .filter(|global| global.index >= global_start_index)
+                        .take(local_count as usize)
                         .cloned()
-                        .map(|mut x| {
-                            x.index = local_reindex_value;
+                        .map(|mut local| {
+                            local.index = local_reindex_value;
                             local_reindex_value += 1;
-                            x
+                            local
                         })
                         .collect();
                     Some(matching_global_objs)
