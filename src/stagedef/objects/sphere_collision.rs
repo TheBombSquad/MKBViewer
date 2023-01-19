@@ -26,3 +26,23 @@ impl Display for SphereCollisionObject {
         write!(f, "{}", self.position)
     }
 }
+
+impl StageDefParsable for SphereCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let radius = reader.read_f32::<B>()?;
+        let unk0x10 = reader.read_u32::<B>()?;
+
+        Ok(Self {
+            position,
+            radius,
+            unk0x10,
+        })
+    }
+}
+

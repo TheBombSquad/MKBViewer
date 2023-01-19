@@ -28,3 +28,26 @@ impl Display for CylinderCollisionObject {
         write!(f, "{}", self.position)
     }
 }
+
+impl StageDefParsable for CylinderCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let radius = reader.read_f32::<B>()?;
+        let height = reader.read_f32::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        let unk0x1a = reader.read_u16::<B>()?;
+
+        Ok(Self {
+            position,
+            radius,
+            height,
+            rotation,
+            unk0x1a,
+        })
+    }
+}

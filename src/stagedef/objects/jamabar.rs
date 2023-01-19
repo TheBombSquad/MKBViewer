@@ -26,3 +26,23 @@ impl Display for Jamabar {
         write!(f, "{}", self.position)
     }
 }
+
+impl StageDefParsable for Jamabar {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        reader.read_u8()?;
+        let scale = reader.read_vec3::<B>()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            scale,
+        })
+    }
+}

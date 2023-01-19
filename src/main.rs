@@ -7,7 +7,6 @@
 extern crate num_derive;
 
 mod app;
-mod parser;
 mod renderer;
 mod stagedef;
 

@@ -54,3 +54,17 @@ impl EguiInspect for BananaType {
             });
     }
 }
+
+impl StageDefParsable for Banana {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let banana_type: BananaType =
+            FromPrimitive::from_u32(reader.read_u32::<B>()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
+        Ok(Self { position, banana_type })
+    }
+}

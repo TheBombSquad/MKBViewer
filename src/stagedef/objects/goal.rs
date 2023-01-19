@@ -53,3 +53,25 @@ impl EguiInspect for GoalType {
             });
     }
 }
+
+impl StageDefParsable for Goal {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+
+        let goal_type: GoalType =
+            FromPrimitive::from_u8(reader.read_u8()?).ok_or_else(|| anyhow::Error::msg("Failed to parse goal type"))?;
+        reader.read_u8()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            goal_type,
+        })
+    }
+}

@@ -1,7 +1,11 @@
 pub use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
+pub use anyhow::Result;
+pub use byteorder::ByteOrder;
 pub use egui_inspect::EguiInspect;
+pub use num_traits::FromPrimitive;
+pub use super::parser::ReadBytesExtSmb;
 
 use super::objects::*;
 
@@ -82,6 +86,14 @@ pub trait StageDefObject {
     fn get_name() -> &'static str;
     fn get_description() -> &'static str;
     fn get_size() -> u32;
+}
+
+pub trait StageDefParsable: StageDefObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb;
 }
 
 /// 32-bit floating point 3 dimensional vector.

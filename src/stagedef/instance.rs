@@ -2,7 +2,7 @@ use anyhow::Result;
 use byteorder::BigEndian;
 use byteorder::LittleEndian;
 use crate::app::FileHandleWrapper;
-use crate::parser::StageDefReader;
+use super::parser::StageDefReader;
 use super::common::*;
 use super::ui_state::*;
 

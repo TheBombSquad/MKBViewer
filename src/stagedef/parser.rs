@@ -1,5 +1,5 @@
 //! Handles parsing of an uncompressed Monkey Ball stage binary.
-use crate::stagedef::common::{Vector3, ShortVector3, StageDefObject, Game, StageDef, GlobalStagedefObject};
+use crate::stagedef::common::{Vector3, ShortVector3, StageDefObject, Game, StageDef, GlobalStagedefObject, StageDefParsable};
 use crate::stagedef::objects::*;
 use anyhow::Result;
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
@@ -9,6 +9,7 @@ use std::{
     io::{self, BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write},
 };
 use tracing::{debug, event, warn, Level};
+
 
 /// Helper function that returns a new [``SeekFrom::Start``] from the given [``u32``] offset.
 ///
@@ -49,8 +50,20 @@ fn try_get_offset_difference(x: &SeekFrom, y: &SeekFrom) -> Result<u32> {
     }
 }
 
+/// Defines possible file offset types within a [``StageDef``].
+#[derive(Default, Clone, Copy, Debug)]
+enum FileOffset {
+    /// The offset, or the structure it refers to, does not exist in this format. Nothing will be read.
+    #[default]
+    Unused,
+    /// The offset points to a single structure.
+    OffsetOnly(SeekFrom),
+    /// The offset points to multiple structures in a contiguous list.
+    CountOffset(u32, SeekFrom),
+}
+
 /// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
-trait ReadBytesExtSmb: ReadBytesExt {
+pub trait ReadBytesExtSmb: ReadBytesExt {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
@@ -103,190 +116,6 @@ impl<T: Seek> SeekExtSmb for T {
             FileOffset::Unused => Err(io::Error::new(io::ErrorKind::Other, "Attempted to seek to an unused value")),
             FileOffset::OffsetOnly(o) | FileOffset::CountOffset(_, o) => self.seek(o),
         }
-    }
-}
-
-/// Defines possible file offset types within a [``StageDef``].
-#[derive(Default, Clone, Copy, Debug)]
-enum FileOffset {
-    /// The offset, or the structure it refers to, does not exist in this format. Nothing will be read.
-    #[default]
-    Unused,
-    /// The offset points to a single structure.
-    OffsetOnly(SeekFrom),
-    /// The offset points to multiple structures in a contiguous list.
-    CountOffset(u32, SeekFrom),
-}
-
-trait StageDefParsable: StageDefObject {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb;
-}
-
-impl StageDefParsable for Goal {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-
-        let goal_type: GoalType =
-            FromPrimitive::from_u8(reader.read_u8()?).ok_or_else(|| anyhow::Error::msg("Failed to parse goal type"))?;
-        reader.read_u8()?;
-
-        Ok(Self {
-            position,
-            rotation,
-            goal_type,
-        })
-    }
-}
-
-impl StageDefParsable for Bumper {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-        reader.read_u8()?;
-        let scale = reader.read_vec3::<B>()?;
-
-        Ok(Self {
-            position,
-            rotation,
-            scale,
-        })
-    }
-}
-
-impl StageDefParsable for Jamabar {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-        reader.read_u8()?;
-        let scale = reader.read_vec3::<B>()?;
-
-        Ok(Self {
-            position,
-            rotation,
-            scale,
-        })
-    }
-}
-
-impl StageDefParsable for Banana {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let banana_type: BananaType =
-            FromPrimitive::from_u32(reader.read_u32::<B>()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
-        Ok(Self { position, banana_type })
-    }
-}
-
-impl StageDefParsable for ConeCollisionObject {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-        reader.read_u8()?;
-
-        let radius_1 = reader.read_f32::<B>()?;
-        let height = reader.read_f32::<B>()?;
-        let radius_2 = reader.read_f32::<B>()?;
-
-        Ok(Self {
-            position,
-            rotation,
-            radius_1,
-            height,
-            radius_2,
-        })
-    }
-}
-
-impl StageDefParsable for SphereCollisionObject {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let radius = reader.read_f32::<B>()?;
-        let unk0x10 = reader.read_u32::<B>()?;
-
-        Ok(Self {
-            position,
-            radius,
-            unk0x10,
-        })
-    }
-}
-
-impl StageDefParsable for CylinderCollisionObject {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let radius = reader.read_f32::<B>()?;
-        let height = reader.read_f32::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-        let unk0x1a = reader.read_u16::<B>()?;
-
-        Ok(Self {
-            position,
-            radius,
-            height,
-            rotation,
-            unk0x1a,
-        })
-    }
-}
-
-impl StageDefParsable for FalloutVolume {
-    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-        B: ByteOrder,
-        R: ReadBytesExtSmb,
-    {
-        let position = reader.read_vec3::<B>()?;
-        let size = reader.read_vec3::<B>()?;
-        let rotation = reader.read_vec3_short::<B>()?;
-        let unk0x1e = reader.read_u16::<B>()?;
-
-        Ok(Self {
-            position,
-            size,
-            rotation,
-            unk0x1e,
-        })
     }
 }
 

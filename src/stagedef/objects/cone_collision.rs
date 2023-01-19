@@ -28,3 +28,29 @@ impl Display for ConeCollisionObject {
         write!(f, "{}", self.position)
     }
 }
+
+impl StageDefParsable for ConeCollisionObject {
+    fn try_from_reader<R, B>(reader: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+        B: ByteOrder,
+        R: ReadBytesExtSmb,
+    {
+        let position = reader.read_vec3::<B>()?;
+        let rotation = reader.read_vec3_short::<B>()?;
+        reader.read_u8()?;
+
+        let radius_1 = reader.read_f32::<B>()?;
+        let height = reader.read_f32::<B>()?;
+        let radius_2 = reader.read_f32::<B>()?;
+
+        Ok(Self {
+            position,
+            rotation,
+            radius_1,
+            height,
+            radius_2,
+        })
+    }
+}
+
