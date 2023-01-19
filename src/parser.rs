@@ -107,7 +107,7 @@ impl<T: Seek> SeekExtSmb for T {
 }
 
 /// Defines possible file offset types within a [``StageDef``].
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 enum FileOffset {
     /// The offset, or the structure it refers to, does not exist in this format. Nothing will be read.
     #[default]
@@ -197,7 +197,7 @@ impl StageDefParsable for Banana {
     {
         let position = reader.read_vec3::<B>()?;
         let banana_type: BananaType =
-            FromPrimitive::from_u8(reader.read_u8()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
+            FromPrimitive::from_u32(reader.read_u32::<B>()?).ok_or_else(|| anyhow::Error::msg("Failed to parse banana type"))?;
         Ok(Self { position, banana_type })
     }
 }
@@ -547,7 +547,7 @@ impl<R: Read + Seek> StageDefReader<R> {
         Ok(stagedef)
     }
 
-    // Determine the default format from our reader's Game attribute, then use the default format
+    // Determine the default format based on our reader's Game attribute, then use the default format
     // to parse the stagedef's offsets.
     fn read_file_header_offsets<B: ByteOrder>(&mut self) -> Result<StageDefFileHeaderFormat> {
         let default_format = match self.game {
@@ -767,7 +767,12 @@ impl<R: Read + Seek> StageDefReader<R> {
             let mut vec = Vec::new();
             self.reader.seek(o)?;
             for i in 0..c {
-                vec.push(GlobalStagedefObject::new(T::try_from_reader::<R, B>(&mut self.reader)?, i));
+                let read_obj = T::try_from_reader::<R, B>(&mut self.reader); 
+
+                match read_obj {
+                    Ok(obj) => vec.push(GlobalStagedefObject::new(obj, i)),
+                    Err(err) => warn!("{err}"),
+                }
             }
             Ok(vec)
         } else {
@@ -839,7 +844,7 @@ impl<R: Read + Seek> StageDefReader<R> {
                 // The difference isn't within the bounds of the list, so the object(s) is not in
                 // the global list
                 else {
-                    debug!(
+                    warn!(
                         "Failed global object retrieval for type {}: local list of size {:} larger than global list of size {:}",
                         T::get_name(), diff, global_size
                     );
@@ -849,13 +854,13 @@ impl<R: Read + Seek> StageDefReader<R> {
             // The difference is negative, so the object(s) is before the global list for some
             // reason
             else {
-                debug!("Failed global object retrieval for type {}: objects before list", T::get_name());
+                warn!("Failed global object retrieval for type {}: objects before list", T::get_name());
                 None
             }
         }
         // There is no global list
         else {
-            debug!("Failed global object retrieval for type {}: no global list", T::get_name());
+            warn!("Failed global object retrieval for type {}: no global list", T::get_name());
             None
         }
     }
@@ -903,6 +908,11 @@ mod test {
         cur.write_uint::<T>(0x00000001, 4)?;
         cur.write_uint::<T>(0x000008B4, 4)?;
 
+        // banana list count/offset
+        cur.seek(from_start(0x30))?;
+        cur.write_uint::<T>(0x00000007, 4)?;
+        cur.write_uint::<T>(0x000008C8, 4)?;
+
         cur.seek(from_start(0x89C))?;
 
         // start position
@@ -927,6 +937,38 @@ mod test {
         cur.write_uint::<T>(0xC2E60000, 4)?;
         cur.write_uint::<T>(0x00000000, 4)?;
         cur.write_uint::<T>(0x00000001, 4)?;
+
+        // banana list
+        cur.seek(from_start(0x8C8));
+		cur.write_uint::<T>(0x41500000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC2CC0000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0xC1500000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC2CC0000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0xC1500000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC3000000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0x41500000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC3000000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0x41900000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC2E60000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0xC1900000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC2E60000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0x3F99999A, 4)?;
+		cur.write_uint::<T>(0xC3050000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
+		cur.write_uint::<T>(0x00000000, 4)?;
 
         cur.seek(from_start(0x1BFC))?;
 
@@ -1053,6 +1095,15 @@ mod test {
         let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
 
         assert_eq!(*stagedef.goals[0].object.lock().unwrap(), expected_goal);
+    }
+
+    #[test]
+    fn test_banana_parse() {
+        let file = test_smb2_stagedef_header::<BigEndian>().unwrap();
+        let mut sd_reader = StageDefReader::new(file, Game::SMB2);
+        let stagedef = sd_reader.read_stagedef::<BigEndian>().unwrap();
+
+        assert_eq!(stagedef.bananas.len(), 7);
     }
 
     #[test]
