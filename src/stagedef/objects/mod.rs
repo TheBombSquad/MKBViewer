@@ -7,6 +7,7 @@ pub use fallout_volume::*;
 pub use goal::*;
 pub use jamabar::*;
 pub use sphere_collision::*;
+pub use background_model::*;
 
 pub mod banana;
 pub mod bumper;
@@ -17,3 +18,4 @@ pub mod fallout_volume;
 pub mod goal;
 pub mod jamabar;
 pub mod sphere_collision;
+pub mod background_model;

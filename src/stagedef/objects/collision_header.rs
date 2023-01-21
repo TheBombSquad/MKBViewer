@@ -38,6 +38,8 @@ pub struct CollisionHeader {
     pub sphere_collisions: Vec<GlobalStagedefObject<SphereCollision>>,
     pub cylinder_collisions: Vec<GlobalStagedefObject<CylinderCollision>>,
     pub fallout_volumes: Vec<GlobalStagedefObject<FalloutVolume>>,
+
+    pub background_models: Vec<GlobalStagedefObject<BackgroundModel>>,
 }
 
 impl StageDefObject for CollisionHeader {

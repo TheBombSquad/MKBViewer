@@ -15,8 +15,8 @@ use tracing::{debug, event, warn, Level};
 /// Helper function that returns a new [``SeekFrom::Start``] from the given [``u32``] offset.
 ///
 /// Mostly used for convenience for writing out default header formats.
-const fn from_start(offset: u32) -> SeekFrom {
-    SeekFrom::Start(offset as u64)
+const fn from_start(offset: u64) -> SeekFrom {
+    SeekFrom::Start(offset)
 }
 
 /// Helper function that takes a [``SeekFrom::Start``] and applies the given [``u32``] offset to it.
@@ -64,14 +64,15 @@ pub enum FileOffset {
 }
 
 /// Extends [``ReadBytesExt``] with methods for reading common [``StageDef``] types.
-pub trait ReadBytesExtSmb: ReadBytesExt {
+pub trait ReadBytesExtSmb: ReadBytesExt + Seek {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3>;
     fn read_vec3_short<U: ByteOrder>(&mut self) -> Result<ShortVector3>;
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
     fn read_count_offset<U: ByteOrder>(&mut self) -> Result<FileOffset>;
+    fn read_model_name_from_offset<U: ByteOrder>(&mut self) -> Result<String>;
 }
 
-impl<T: ReadBytesExt> ReadBytesExtSmb for T {
+impl<T: ReadBytesExt + Seek> ReadBytesExtSmb for T {
     fn read_vec3<U: ByteOrder>(&mut self) -> Result<Vector3> {
         let x = self.read_f32::<U>()?;
         let y = self.read_f32::<U>()?;
@@ -89,7 +90,7 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
     }
 
     fn read_offset<U: ByteOrder>(&mut self) -> Result<FileOffset> {
-        let offset = from_start(self.read_u32::<U>()?);
+        let offset = from_start(u64::from(self.read_u32::<U>()?));
 
         Ok(FileOffset::OffsetOnly(offset))
     }
@@ -101,8 +102,27 @@ impl<T: ReadBytesExt> ReadBytesExtSmb for T {
         if count == 0 || offset == 0 {
             Ok(FileOffset::Unused)
         } else {
-            Ok(FileOffset::CountOffset(count, from_start(offset)))
+            Ok(FileOffset::CountOffset(count, from_start(u64::from(offset))))
         }
+    }
+
+    fn read_model_name_from_offset<U: ByteOrder>(&mut self) -> Result<String> {
+        let name_offset = from_start(u64::from(self.read_u32::<U>()?));
+        let return_position = from_start(self.stream_position()?);
+
+        self.seek(name_offset)?;
+        
+        let mut u8_arr: Vec<char> = Vec::new();
+        let mut current_byte = 0xFF;
+        while current_byte != 0x0 {
+            current_byte = self.read_u8()?;
+            u8_arr.push(current_byte as char);
+        }
+
+        self.seek(return_position)?;
+
+        let string = u8_arr.iter().collect::<String>();
+        Ok(string)
     }
 }
 
@@ -361,6 +381,11 @@ impl<R: Read + Seek> StageDefReader<R> {
             stagedef.fallout_volumes = fallout_vols;
         }
 
+        // Read background_model list
+        if let Ok(background_models) = self.read_stagedef_list::<B, BackgroundModel>(self.file_header.bg_model_list_offset) {
+            stagedef.background_models = background_models;
+        }
+
         // Read all collision headers - done last so we can properly set up references to other global
         // stagedef objects
         // TODO: Change based on game
@@ -585,6 +610,11 @@ impl<R: Read + Seek> StageDefReader<R> {
             collision_header.fallout_volumes = fallout_volumes;
         }
 
+        // Read background_model list
+        if let Ok(background_models) = self.read_stagedef_list::<B, BackgroundModel>(self.file_header.bg_model_list_offset) {
+            collision_header.background_models = background_models;
+        }
+
         Ok(collision_header)
     }
 
@@ -626,7 +656,7 @@ impl<R: Read + Seek> StageDefReader<R> {
                 self.reader.seek(local_offset)?;
 
                 // Attempt to get objects from global list and re-adjust indices for our local list
-                let vec = match Self::get_global_objects(local_count, &local_offset, &global_list_offset, global_list) {
+                let vec = match Self::get_global_objs_from_local_list(local_count, &local_offset, &global_list_offset, global_list) {
                     Some(objs) => objs,
                     None => self.read_stagedef_list::<B, T>(local_count_offset)?,
                 };
@@ -642,7 +672,7 @@ impl<R: Read + Seek> StageDefReader<R> {
 
     /// Return the intersection between a local and global stagedef object list, or ``None`` if no
     /// overlap exists.
-    fn get_global_objects<T: StageDefParsable>(
+    fn get_global_objs_from_local_list<T: StageDefParsable>(
         local_count: u32,
         local_offset: &SeekFrom,
         global_co: &FileOffset,

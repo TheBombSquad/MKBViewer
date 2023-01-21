@@ -100,12 +100,13 @@ impl StageDefInstanceUiState {
             self.display_tree_stagedef_object(ui, &mut stagedef.sphere_collisions, inspectables);
             self.display_tree_stagedef_object(ui, &mut stagedef.cylinder_collisions, inspectables);
             self.display_tree_stagedef_object(ui, &mut stagedef.fallout_volumes, inspectables);
+            self.display_tree_stagedef_object(ui, &mut stagedef.background_models, inspectables);
 
             egui::CollapsingHeader::new(format!("Collision Headers ({})", stagedef.collision_headers.len())).show(
                 ui,
                 |ui| {
                     for (col_header_idx, col_header) in stagedef.collision_headers.iter_mut().enumerate() {
-                        egui::CollapsingHeader::new(format!("Collision Header #{}", col_header_idx + 1)).show(ui, |ui| {
+                        egui::CollapsingHeader::new(format!("Collision Header {}", col_header_idx + 1)).show(ui, |ui| {
                             self.display_tree_stagedef_object(ui, &mut col_header.goals, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.bumpers, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.jamabars, inspectables);
@@ -114,6 +115,7 @@ impl StageDefInstanceUiState {
                             self.display_tree_stagedef_object(ui, &mut col_header.sphere_collisions, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.cylinder_collisions, inspectables);
                             self.display_tree_stagedef_object(ui, &mut col_header.fallout_volumes, inspectables);
+                            self.display_tree_stagedef_object(ui, &mut col_header.background_models, inspectables);
                         });
                     }
                 },
@@ -129,6 +131,8 @@ impl StageDefInstanceUiState {
     ) where
         T: StageDefObject + EguiInspect + Display + 'a,
     {
+        if objects.is_empty() { return }
+
         let header_title = format!("{}s ({})", T::get_name(), objects.len());
         egui::CollapsingHeader::new(header_title).show(ui, |ui| {
             for (index, object) in objects.iter_mut().enumerate() {

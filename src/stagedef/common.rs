@@ -1,5 +1,5 @@
 pub use std::fmt::Display;
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}, collections::HashSet};
 
 pub use super::parser::ReadBytesExtSmb;
 pub use anyhow::Result;
@@ -29,6 +29,11 @@ pub struct StageDef {
     pub sphere_collisions: Vec<GlobalStagedefObject<SphereCollision>>,
     pub cylinder_collisions: Vec<GlobalStagedefObject<CylinderCollision>>,
     pub fallout_volumes: Vec<GlobalStagedefObject<FalloutVolume>>,
+
+    pub background_models: Vec<GlobalStagedefObject<BackgroundModel>>,
+
+    // Makes the assumption that stagedefs must have unique model names
+    pub model_names: HashSet<String>,
 }
 
 #[derive(Debug)]
